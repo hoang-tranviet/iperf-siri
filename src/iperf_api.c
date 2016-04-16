@@ -270,6 +270,12 @@ iperf_get_test_one_off(struct iperf_test *ipt)
     return ipt->one_off;
 }
 
+int
+iperf_get_pacing(struct iperf_test *ipt)
+{
+    return ipt->pacing;
+}
+
 /************** Setter routines for some fields inside iperf_test *************/
 
 void
@@ -439,6 +445,12 @@ void
 iperf_set_test_one_off(struct iperf_test *ipt, int one_off)
 {
     ipt->one_off = one_off;
+}
+
+void
+iperf_set_pacing(struct iperf_test *ipt, int pacing)
+{
+    ipt->pacing = pacing;
 }
 
 /********************** Get/set test protocol structure ***********************/
@@ -656,6 +668,7 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
 	{"forceflush", no_argument, NULL, OPT_FORCEFLUSH},
 	{"get-server-output", no_argument, NULL, OPT_GET_SERVER_OUTPUT},
 	{"udp-counters-64bit", no_argument, NULL, OPT_UDP_COUNTERS_64BIT},
+	{"socket-pacing", no_argument, NULL, OPT_PACING},
         {"debug", no_argument, NULL, 'd'},
         {"help", no_argument, NULL, 'h'},
         {NULL, 0, NULL, 0}
@@ -938,6 +951,14 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
 	    case OPT_UDP_COUNTERS_64BIT:
 		test->udp_counters_64bit = 1;
 		break;
+	    case OPT_PACING:
+#if defined(HAVE_SO_MAX_PACING_RATE)
+		test->pacing = 1;
+#else /* HAVE_SO_MAX_PACING_RATE */
+		i_errno = IEUNIMP;
+		return -1;
+#endif
+		break;
             case 'h':
             default:
                 usage_long();
@@ -1069,8 +1090,9 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
 	    gettimeofday(&now, NULL);
 	streams_active = 0;
 	SLIST_FOREACH(sp, &test->streams, streams) {
-	    if (sp->green_light &&
-	        (write_setP == NULL || FD_ISSET(sp->socket, write_setP))) {
+	    if (test->pacing ||
+		(sp->green_light &&
+		 (write_setP == NULL || FD_ISSET(sp->socket, write_setP)))) {
 		if ((r = sp->snd(sp)) < 0) {
 		    if (r == NET_SOFTERROR)
 			break;
@@ -1316,6 +1338,8 @@ send_parameters(struct iperf_test *test)
 	    cJSON_AddIntToObject(j, "get_server_output", iperf_get_test_get_server_output(test));
 	if (test->udp_counters_64bit)
 	    cJSON_AddIntToObject(j, "udp_counters_64bit", iperf_get_test_udp_counters_64bit(test));
+	if (test->pacing)
+	    cJSON_AddIntToObject(j, "pacing", iperf_get_pacing(test));
 
 	cJSON_AddStringToObject(j, "client_version", IPERF_VERSION);
 
@@ -1394,6 +1418,9 @@ get_parameters(struct iperf_test *test)
 	    iperf_set_test_get_server_output(test, 1);
 	if ((j_p = cJSON_GetObjectItem(j, "udp_counters_64bit")) != NULL)
 	    iperf_set_test_udp_counters_64bit(test, 1);
+	if ((j_p = cJSON_GetObjectItem(j, "pacing")) != NULL)
+	    iperf_set_pacing(test, 1);
+	
 	if (test->sender && test->protocol->id == Ptcp && has_tcpinfo_retransmits())
 	    test->sender_has_retransmits = 1;
 	cJSON_Delete(j);

@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------- 
- * iperf, Copyright (c) 2014, The Regents of the University of
+ * iperf, Copyright (c) 2014, 2016, The Regents of the University of
  * California, through Lawrence Berkeley National Laboratory (subject
  * to receipt of any required approvals from the U.S. Dept. of
  * Energy).  All rights reserved.
@@ -153,6 +153,9 @@ const char usage_longstr[] = "Usage: iperf [-s|-c host] [options]\n"
                            "  -T, --title str           prefix every output line with this string\n"
                            "  --get-server-output       get results from server\n"
                            "  --udp-counters-64bit      use 64-bit counters in UDP test packets\n"
+#if defined(HAVE_SO_MAX_PACING_RATE)
+                           "  --socket-pacing           use socket pacing\n"
+#endif
 
 #ifdef NOT_YET_SUPPORTED /* still working on these */
 #endif
