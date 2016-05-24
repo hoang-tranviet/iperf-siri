@@ -245,16 +245,16 @@ iperf_udp_accept(struct iperf_test *test)
     }
 
 #if defined(HAVE_SO_MAX_PACING_RATE)
-    if (test->pacing) {
+    /* If socket pacing is available and not disabled, try it. */
+    if (! test->no_fq_socket_pacing) {
 	/* Convert bits per second to bytes per second */
 	unsigned int rate = test->settings->rate / 8;
-	if (setsockopt(s, SOL_SOCKET, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
-	    close(s);
-	    i_errno = IESETPACING;
-	    return -1;
-	}
 	if (test->debug) {
-	    printf("Socket pacing set to %u\n", rate);
+	    printf("Setting fair-queue socket pacing to %u\n", rate);
+	}
+	if (setsockopt(s, SOL_SOCKET, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
+	    warning("Unable to set socket pacing, using application pacing instead");
+	    test->no_fq_socket_pacing = 1;
 	}
     }
 #endif /* HAVE_SO_MAX_PACING_RATE */
@@ -342,16 +342,16 @@ iperf_udp_connect(struct iperf_test *test)
     }
 
 #if defined(HAVE_SO_MAX_PACING_RATE)
-    if (test->pacing) {
+    /* If socket pacing is available and not disabled, try it. */
+    if (! test->no_fq_socket_pacing) {
 	/* Convert bits per second to bytes per second */
 	unsigned int rate = test->settings->rate / 8;
-	if (setsockopt(s, SOL_SOCKET, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
-	    close(s);
-	    i_errno = IESETPACING;
-	    return -1;
-	}
 	if (test->debug) {
-	    printf("Socket pacing set to %u\n", rate);
+	    printf("Setting fair-queue socket pacing to %u\n", rate);
+	}
+	if (setsockopt(s, SOL_SOCKET, SO_MAX_PACING_RATE, &rate, sizeof(rate)) < 0) {
+	    warning("Unable to set socket pacing, using application pacing instead");
+	    test->no_fq_socket_pacing = 1;
 	}
     }
 #endif /* HAVE_SO_MAX_PACING_RATE */
