@@ -59,5 +59,6 @@ int iperf_tcp_listen(struct iperf_test *);
 
 int iperf_tcp_connect(struct iperf_test *);
 
+struct sockaddr * getIPfromInterface(struct iperf_test *, char *);
 
 #endif

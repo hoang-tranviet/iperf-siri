@@ -487,6 +487,61 @@ set_protocol(struct iperf_test *test, int prot_id)
     return -1;
 }
 
+#include <stdbool.h>
+#include <ifaddrs.h>
+bool isHostInterface(char *iface){
+    struct ifaddrs  *ifaddr, *ifa;
+
+    if (getifaddrs(&ifaddr) == -1)    {
+        perror("getifaddrs");
+        exit(EXIT_FAILURE);
+    }
+    /* Walk through linked list, maintaining head pointer so we
+       can free list later */
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+        if(strcmp(ifa->ifa_name, iface)==0)
+            return true;
+    printf("No interface found:%s \n", iface);
+    freeifaddrs(ifaddr);
+    return false;
+}
+
+char *get_ip_str(const struct sockaddr *sa)
+{
+    char *s = malloc(INET6_ADDRSTRLEN);
+    switch(sa->sa_family) {
+        case AF_INET:
+            inet_ntop(AF_INET, &(((struct sockaddr_in *)sa)->sin_addr),
+                    s, INET_ADDRSTRLEN);
+            break;
+
+        case AF_INET6:
+            inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)sa)->sin6_addr),
+                    s, INET6_ADDRSTRLEN);
+            break;
+
+        default:
+            snprintf(s, INET6_ADDRSTRLEN, "Unknown AF: %d", sa->sa_family);
+    }
+    return s;
+}
+
+struct sockaddr * str_to_ip(char * ip_str) {
+    struct addrinfo hints, *result, *rp;
+    int rv;
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family   = AF_UNSPEC;   // use AF_INET6 to force IPv6
+    hints.ai_socktype = SOCK_STREAM;
+
+    if ((rv = getaddrinfo( ip_str, NULL, &hints, &result)) != 0) {
+            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+                exit(1);
+    }
+    for (rp = result; rp != NULL; rp = rp->ai_next)
+        if (rp != NULL)    return rp->ai_addr;
+    return NULL;
+}
 
 /************************** Iperf callback functions **************************/
 
@@ -634,6 +689,7 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
         {"blockcount", required_argument, NULL, 'k'},
         {"length", required_argument, NULL, 'l'},
         {"parallel", required_argument, NULL, 'P'},
+        {"subflows", required_argument, NULL, 'm'},
         {"reverse", no_argument, NULL, 'R'},
         {"window", required_argument, NULL, 'w'},
         {"bind", required_argument, NULL, 'B'},
@@ -684,7 +740,7 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
 
     blksize = 0;
     server_flag = client_flag = rate_flag = duration_flag = 0;
-    while ((flag = getopt_long(argc, argv, "p:f:i:D1VJvsc:ub:t:n:k:l:P:Rw:B:M:N46S:L:ZO:F:A:T:C:dI:hX:", longopts, NULL)) != -1) {
+    while ((flag = getopt_long(argc, argv, "p:f:i:D1VJvsc:ub:t:n:k:l:P:m:Rw:B:M:N46S:L:ZO:F:A:T:C:dI:hX:", longopts, NULL)) != -1) {
         switch (flag) {
             case 'p':
                 test->server_port = atoi(optarg);
@@ -800,6 +856,59 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
                     return -1;
                 }
 		client_flag = 1;
+                break;
+            case 'm':
+                ; // semicolon to avoid stupid C error "a label can only be part of a statement"
+                char *str = strdup(optarg);
+                char *token;
+                struct iperf_subflow *sf;
+
+                while ((token = strsep(&str, ",")))
+                {
+                    printf("%s \n",token);
+                    // this is initial subflow.
+                    if (test->num_subflows == 0) {
+                        // if this is an address, just store as local host bind_address
+                        if (!isHostInterface(token))
+                            test->bind_address = strdup(token);
+                        // if this is an interface, look up for its IP address
+                        else {
+                            test->bind_address = malloc(INET6_ADDRSTRLEN);
+                            struct sockaddr *sa = getIPfromInterface(test, token);
+                            test->bind_address  = get_ip_str(sa);
+                       }
+                    }
+                    // next subflows
+                    else {
+                        sf = (struct iperf_subflow *) malloc(sizeof(struct iperf_subflow));
+                        sf->local_addr = malloc(sizeof(struct sockaddr_storage));
+                        // if this is an interface, get its IP address first
+                        if (isHostInterface(token)) {
+                            sf->ifacename  = token;
+                            // copy content from getIPfromInterface() to local_addr
+                            // cannot assign pointer directly, since it only makes a shallow copy of pointer of ifaddr, whose contents are destroyed by freeifaddrs(ifaddr) in getIPfromInterface()
+                            *(sf->local_addr) = *getIPfromInterface(test, token);
+                            printf("sf address: %s\n", get_ip_str(sf->local_addr));
+                        }
+                        // if this is an address, just store it to sf->local_addr
+                        else {
+                            sf->local_addr = str_to_ip(token);
+                            //inet_pton(AF_INET, token, &(((struct sockaddr_in *)(sf->local_addr))->sin_addr));
+                        }
+                        printf("add list entry at pointer: %p ", sf->local_addr);
+                        printf("  address family: %d %hu\n", sf->local_addr->sa_family, sf->local_addr->sa_family);
+                        // insert element 'sf' into head (test->subflows) of list
+                        SLIST_INSERT_HEAD(&test->subflows, sf, subflows);
+                    }
+                    test->num_subflows++;
+                }
+                free(str);
+
+                if (test->num_subflows > MAX_SUBFLOWS) {
+                    i_errno = IENUMSUBFLOWS;
+                    return -1;
+                }
+                client_flag = 1;
                 break;
             case 'R':
 		iperf_set_test_reverse(test, 1);
@@ -1841,6 +1950,7 @@ iperf_defaults(struct iperf_test *testp)
 
     testp->stats_interval = testp->reporter_interval = 1;
     testp->num_streams = 1;
+    testp->num_subflows = 0;
 
     testp->settings->domain = AF_UNSPEC;
     testp->settings->unit_format = 'a';
@@ -1857,6 +1967,7 @@ iperf_defaults(struct iperf_test *testp)
 
     /* Set up protocol list */
     SLIST_INIT(&testp->streams);
+    SLIST_INIT(&testp->subflows);
     SLIST_INIT(&testp->protocols);
 
     tcp = protocol_new();

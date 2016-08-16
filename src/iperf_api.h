@@ -73,6 +73,9 @@ struct iperf_stream;
 #define ACCESS_DENIED (-1)
 #define SERVER_ERROR (-2)
 
+// Helper function to get IP string from sockaddr
+char *get_ip_str(const struct sockaddr *sa);
+
 /* Getter routines for some fields inside iperf_test. */
 int	iperf_get_verbose( struct iperf_test* ipt );
 int	iperf_get_control_socket( struct iperf_test* ipt );
@@ -292,6 +295,7 @@ enum {
     IEBIND = 19,			// Local port specified with no local bind option
     IEUDPBLOCKSIZE = 20,    // Block size too large. Maximum value = %dMAX_UDP_BLOCKSIZE
     IEBADTOS = 21,	    // Bad TOS value
+    IENUMSUBFLOWS = 30,     // Number of subflows too large. Maximum value = %dMAX_SUBFLOWS
     /* Test errors */
     IENEWTEST = 100,        // Unable to create a new test (check perror)
     IEINITTEST = 101,       // Test initialization failed (check perror)

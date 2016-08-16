@@ -175,6 +175,13 @@ struct iperf_stream
     void     *data;
 };
 
+struct iperf_subflow {
+    int       addr_is_set;
+    char      *ifacename;
+  //struct sockaddr_storage   *local_addr;
+    struct sockaddr           *local_addr;
+    SLIST_ENTRY(iperf_subflow) subflows;
+};
 struct protocol {
     int       id;
     char      *name;
@@ -266,12 +273,15 @@ struct iperf_test
     double remote_cpu_util[3];                     /* cpu utilization for the remote host/client - total, user, system */
 
     int       num_streams;                      /* total streams in the test (-P) */
+    int       num_subflows;                      /* total mptcp subflows in the test */
 
     iperf_size_t bytes_sent;
     iperf_size_t blocks_sent;
     char      cookie[COOKIE_SIZE];
 //    struct iperf_stream *streams;               /* pointer to list of struct stream */
+    //        ( head    , type )        var;
     SLIST_HEAD(slisthead, iperf_stream) streams;
+    SLIST_HEAD(sflisthead, iperf_subflow) subflows;
     struct iperf_settings *settings;
 
     SLIST_HEAD(plisthead, protocol) protocols;
@@ -321,5 +331,6 @@ struct iperf_test
 #define MAX_BURST 1000
 #define MAX_MSS (9 * 1024)
 #define MAX_STREAMS 128
+#define MAX_SUBFLOWS 8
 
 #endif /* !__IPERF_H */

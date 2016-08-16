@@ -71,21 +71,31 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
     struct addrinfo hints, *local_res, *server_res;
     int s;
 
+    printf("Try to get local address\n");
+    /* get local address */
     if (local) {
         memset(&hints, 0, sizeof(hints));
         hints.ai_family = domain;
         hints.ai_socktype = proto;
-        if (getaddrinfo(local, NULL, &hints, &local_res) != 0)
+        int e = getaddrinfo(local, NULL, &hints, &local_res);
+        if (e != 0){
+            fprintf(stderr, "getaddrinfo: %s \n", gai_strerror(e));
             return -1;
+        }
     }
+    printf("Got local address\n");
 
+    /* get server address */
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = domain;
     hints.ai_socktype = proto;
     if (getaddrinfo(server, NULL, &hints, &server_res) != 0)
         return -1;
 
+    printf("Got server address, opening socket \n");
+
     s = socket(server_res->ai_family, proto, 0);
+    perror("Create socket");
     if (s < 0) {
 	if (local)
 	    freeaddrinfo(local_res);
@@ -105,17 +115,33 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
 	    close(s);
 	    freeaddrinfo(local_res);
 	    freeaddrinfo(server_res);
+            printf("Failed to bind to local address: %d\n", s);
             return -1;
 	}
         freeaddrinfo(local_res);
     }
 
-    ((struct sockaddr_in *) server_res->ai_addr)->sin_port = htons(port);
+    perror("Bind to local address");
+
+    switch(server_res->ai_family) {
+        case AF_INET:
+            ((struct sockaddr_in *) server_res->ai_addr)->sin_port = htons(port);
+            break;
+        case AF_INET6:
+            ((struct sockaddr_in6 *) server_res->ai_addr)->sin6_port = htons(port);
+            fprintf(stderr,"ipv6 domain\n");
+            break;
+        default:
+            fprintf(stderr,"unknown domain\n");
+            return -1;
+    }
     if (connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen) < 0 && errno != EINPROGRESS) {
+        perror("Connect");
 	close(s);
 	freeaddrinfo(server_res);
         return -1;
     }
+    printf("connect to server succeed\n");
 
     freeaddrinfo(server_res);
     return s;

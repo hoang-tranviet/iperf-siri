@@ -38,7 +38,7 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <netdb.h>
-
+#include <arpa/inet.h>
 #include <sys/time.h>
 #include <sys/select.h>
 
@@ -319,6 +319,161 @@ iperf_tcp_listen(struct iperf_test *test)
     return s;
 }
 
+#include <ifaddrs.h>
+
+/* get IP of the requested interface */
+struct sockaddr * getIPfromInterface(struct iperf_test *test, char * iface){
+    struct ifaddrs  *ifaddr, *ifa;
+    struct sockaddr *addr;
+
+    if (getifaddrs(&ifaddr) == -1)    {
+        perror("getifaddrs");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Walk through linked list, maintaining head pointer so we
+       can free list later */
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) 
+    {
+        if (ifa->ifa_addr == NULL)
+            continue;
+        char *host = get_ip_str(ifa->ifa_addr);
+        addr = ifa->ifa_addr;
+        if (test->debug) {
+            printf("\tInterface : <%s>\n", ifa->ifa_name);
+            printf("\t  Address : <%s>\n", host );
+        }
+        if(strcmp(ifa->ifa_name, iface)==0)
+            if ((addr->sa_family == AF_INET) || (addr->sa_family == AF_INET6)) {
+                freeifaddrs(ifaddr);
+                return addr;
+            }
+    }
+    freeifaddrs(ifaddr);
+    return NULL;
+}
+
+// mptcp create subflow :)
+
+void create_subflow(struct iperf_test *test, int s, struct iperf_subflow *sf, struct addrinfo * server_res){
+    unsigned int optlen;
+    struct mptcp_sub_tuple *sub_tuple;
+    char str[INET6_ADDRSTRLEN];
+
+    unsigned short family = sf->local_addr->sa_family;
+
+    if (family == AF_INET) {
+        optlen = sizeof(struct mptcp_sub_tuple) +
+                2 * sizeof(struct sockaddr_in);
+        sub_tuple = malloc(optlen);
+        struct sockaddr_in  *addr;
+        // source
+        addr = (struct sockaddr_in*) &sub_tuple->addrs[0];
+
+        addr->sin_family = family;
+        addr->sin_addr = ((struct sockaddr_in *) sf->local_addr)->sin_addr;
+        addr->sin_port = 0;
+        //addr->sin_port = htons(test->bind_port + 10001);
+
+        if (test->debug){
+            inet_ntop(family, &(addr->sin_addr), str, INET_ADDRSTRLEN);
+            printf("\nnew subflow on local IP: %s\n", str);
+        }
+        // destination
+        addr++;
+        addr->sin_family = family;
+        addr->sin_port = htons(PORT);
+        addr->sin_addr = ((struct sockaddr_in*) server_res->ai_addr)->sin_addr;
+    }
+    else if (family == AF_INET6) {
+        optlen = sizeof(struct mptcp_sub_tuple) +
+                2 * sizeof(struct sockaddr_in6);
+        sub_tuple = malloc(optlen);
+        struct sockaddr_in6  *addr;
+        // source
+        addr = (struct sockaddr_in6 *) &sub_tuple->addrs[0];
+
+        addr->sin6_family = family;
+        addr->sin6_addr = ((struct sockaddr_in6*) sf->local_addr)->sin6_addr;
+        addr->sin6_port = 0;
+
+        if (test->debug){
+            inet_ntop(family, &(addr->sin6_addr), str, INET6_ADDRSTRLEN);
+            printf("\nnew subflow on local IPv6: %s\n", str);
+        }
+        // destination
+        addr++;
+        addr->sin6_family = family;
+        addr->sin6_port = htons(PORT);
+        addr->sin6_addr = ((struct sockaddr_in6*) server_res->ai_addr)->sin6_addr;
+
+    }
+    else {
+        printf("Create subflow: Don't know this address family: %d %hu\n", family,sf->local_addr->sa_family);
+        return;
+    }
+
+    // open new subflow here
+    getsockopt(s, IPPROTO_TCP, MPTCP_OPEN_SUB_TUPLE, sub_tuple, &optlen);
+    perror("create subflow");
+    if (test->debug)    printf("\noptlen: %u, sub_tuple: %lu \n", optlen, sizeof(sub_tuple));
+}
+
+void get_subflow_tuple(struct iperf_test *test, int s, uint8_t  id){
+    unsigned int optlen;
+    struct mptcp_sub_tuple *sub_tuple;
+    struct sockaddr *sin;
+
+    optlen = 100;
+    sub_tuple = malloc(optlen);
+
+    sub_tuple->id = id;
+
+    getsockopt(s, IPPROTO_TCP, MPTCP_GET_SUB_TUPLE, sub_tuple, &optlen);
+    perror("get subflows");
+    sin = (struct sockaddr*) &sub_tuple->addrs[0];
+
+    char str[INET6_ADDRSTRLEN];
+    if(sin->sa_family == AF_INET) {
+        struct sockaddr_in *sin4;
+        sin4 = (struct sockaddr_in*) &sub_tuple->addrs[0];
+        inet_ntop(sin4->sin_family, &(sin4->sin_addr), str, INET_ADDRSTRLEN);
+        printf("\t ip src: %s src port: %hu\n", str, ntohs(sin4->sin_port));
+        sin4++;
+        inet_ntop(sin4->sin_family, &(sin4->sin_addr), str, INET_ADDRSTRLEN);
+        printf("\t ip dst: %s dst port: %hu\n", str, ntohs(sin4->sin_port));
+    }
+    if(sin->sa_family == AF_INET6) {
+        struct sockaddr_in6 *sin6;
+        sin6 = (struct sockaddr_in6*) &sub_tuple->addrs[0];
+        inet_ntop(sin6->sin6_family, &(sin6->sin6_addr), str, INET6_ADDRSTRLEN);
+        printf("\t ip src: %s src port: %hu\n", str, ntohs(sin6->sin6_port));
+        sin6++;
+        inet_ntop(sin6->sin6_family, &(sin6->sin6_addr), str, INET6_ADDRSTRLEN);
+        printf("\t ip dst: %s dst port: %hu\n", str, ntohs(sin6->sin6_port));
+    }
+}
+
+int get_subflow_ids(struct iperf_test *test, int s){
+        unsigned int optlen;
+        // what is the correct length?
+        optlen=42;
+        struct mptcp_sub_ids *ids;
+        ids = malloc(optlen);
+        int e = getsockopt(s, IPPROTO_TCP, MPTCP_GET_SUB_IDS, ids, &optlen);
+        if (e < 0) {
+            perror("get subflow ids: ");
+            return 0;
+        }
+        int i;
+        printf("sub_count:%d \n", ids->sub_count);
+        for(i = 0; i < ids->sub_count; i++){
+            printf("Subflow id : %i\n",  ids->sub_status[i].id);
+	    get_subflow_tuple(test, s, ids->sub_status[i].id);
+        }
+        return ids->sub_count;
+}
+
 
 /* iperf_tcp_connect
  *
@@ -511,6 +666,14 @@ iperf_tcp_connect(struct iperf_test *test)
         i_errno = IESTREAMCONNECT;
         return -1;
     }
+
+    printf("number of subflows: %d\n", test->num_subflows);
+    struct iperf_subflow *sf;
+    SLIST_FOREACH(sf, &test->subflows, subflows){
+        printf("read list entry pointer: %p ", sf->local_addr);
+        create_subflow(test, s, sf, server_res);
+    }
+    get_subflow_ids(test, s);
 
     freeaddrinfo(server_res);
 

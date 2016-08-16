@@ -113,6 +113,9 @@ iperf_strerror(int i_errno)
         case IENUMSTREAMS:
             snprintf(errstr, len, "number of parallel streams too large (maximum = %d)", MAX_STREAMS);
             break;
+        case IENUMSUBFLOWS:
+            snprintf(errstr, len, "number of MPTCP subflows too large (maximum = %d)", MAX_SUBFLOWS);
+            break;
         case IEBLOCKSIZE:
             snprintf(errstr, len, "block size too large (maximum = %d bytes)", MAX_BLOCKSIZE);
             break;
