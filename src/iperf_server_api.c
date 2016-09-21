@@ -1,5 +1,5 @@
 /*
- * iperf, Copyright (c) 2014, 2015, The Regents of the University of
+ * iperf, Copyright (c) 2014, 2015, 2016, The Regents of the University of
  * California, through Lawrence Berkeley National Laboratory (subject
  * to receipt of any required approvals from the U.S. Dept. of
  * Energy).  All rights reserved.
@@ -428,8 +428,12 @@ cleanup_server(struct iperf_test *test)
     test->remote_iperf_supports_mptcp = 0;
 
     /* Close open test sockets */
-    close(test->ctrl_sck);
-    close(test->listener);
+    if (test->ctrl_sck) {
+	close(test->ctrl_sck);
+    }
+    if (test->listener) {
+	close(test->listener);
+    }
 
     /* Cancel any remaining timers. */
     if (test->stats_timer != NULL) {
@@ -563,6 +567,7 @@ iperf_run_server(struct iperf_test *test)
                         if (test->no_delay || test->settings->mss || test->settings->socket_bufsize) {
                             FD_CLR(test->listener, &test->read_set);
                             close(test->listener);
+			    test->listener = 0;
                             if ((s = netannounce(test->settings->domain, Ptcp, test->bind_address,
                                                  test->server_port, test->mptcp_scheduler)) < 0) {
 				cleanup_server(test);
