@@ -36,7 +36,7 @@
 #endif
 #include <sys/select.h>
 #include <sys/socket.h>
-#include <netinet/tcp.h>
+#include <linux/tcp.h>
 
 #if defined(HAVE_CPUSET_SETAFFINITY)
 #include <sys/param.h>
