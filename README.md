@@ -1,3 +1,32 @@
+
+Modify iperf3 to use MPTCP socket API
+=====================================
+
+This branch contains patches to iperf3 for utilizing MPTCP socket API.
+
+On server, just create iperf server as usual:
+
+    $ src/iperf3 -s
+
+On client, we can specify each subflow by interface name:
+
+    $ src/iperf3 -c 10.0.2.15 -t 3 -m eth0,eth1
+
+or by client's IP address:
+
+    $ src/iperf3 -c 10.0.2.15 -t 3 -m 192.168.56.101,192.168.56.101
+
+or a combination:
+
+    $ src/iperf3 -c 10.0.2.15 -t 3 -m eth1,192.168.56.101
+or by IPv6:
+    $ src/iperf3 -c 2001:6a8:3081:4f00:a00:27ff:fe1f:2daf    -t 5  -d   -m  2001:6a8:3081:4f00:a00:27ff:fec4:285c,2001:6a8:3081:4f00:a00:27ff:fec4:285c
+
+
+And below is the original iperf3 documentation.
+
+--------------------
+
 iperf3:  A TCP, UDP, and SCTP network bandwidth measurement tool
 ================================================================
 
