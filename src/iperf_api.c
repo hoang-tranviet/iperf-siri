@@ -86,6 +86,7 @@ static int diskfile_send(struct iperf_stream *sp);
 static int diskfile_recv(struct iperf_stream *sp);
 static int JSON_write(int fd, cJSON *json);
 static void print_interval_results(struct iperf_test *test, struct iperf_stream *sp, cJSON *json_interval_streams);
+static void print_sf_interval_results(struct iperf_test *test, struct iperf_subflow *sf, cJSON *json_interval_streams);
 static cJSON *JSON_read(int fd);
 
 
@@ -501,7 +502,6 @@ bool isHostInterface(char *iface){
     for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
         if(strcmp(ifa->ifa_name, iface)==0)
             return true;
-    printf("No interface found:%s \n", iface);
     freeifaddrs(ifaddr);
     return false;
 }
@@ -885,18 +885,20 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
                         // if this is an interface, get its IP address first
                         if (isHostInterface(token)) {
                             sf->ifacename  = token;
-                            // copy content from getIPfromInterface() to local_addr
-                            // cannot assign pointer directly, since it only makes a shallow copy of pointer of ifaddr, whose contents are destroyed by freeifaddrs(ifaddr) in getIPfromInterface()
+                            /* copy content from getIPfromInterface() to local_addr
+                             * cannot assign pointer directly, since it only makes
+                             * a shallow copy of pointer of ifaddr, whose contents are
+                             * destroyed by freeifaddrs(ifaddr) in getIPfromInterface()
+                             */
                             *(sf->local_addr) = *getIPfromInterface(test, token);
                             printf("sf address: %s\n", get_ip_str(sf->local_addr));
                         }
                         // if this is an address, just store it to sf->local_addr
                         else {
                             sf->local_addr = str_to_ip(token);
-                            //inet_pton(AF_INET, token, &(((struct sockaddr_in *)(sf->local_addr))->sin_addr));
                         }
-                        printf("add list entry at pointer: %p ", sf->local_addr);
-                        printf("  address family: %d %hu\n", sf->local_addr->sa_family, sf->local_addr->sa_family);
+                        //printf("add list entry at pointer: %p ", sf->local_addr);
+                        //printf("  address family: %d %hu\n", sf->local_addr->sa_family, sf->local_addr->sa_family);
                         // insert element 'sf' into head (test->subflows) of list
                         SLIST_INSERT_HEAD(&test->subflows, sf, subflows);
                     }
@@ -1260,6 +1262,7 @@ iperf_init_test(struct iperf_test *test)
 {
     struct timeval now;
     struct iperf_stream *sp;
+    struct iperf_subflow *sf;
 
     if (test->protocol->init) {
         if (test->protocol->init(test) < 0)
@@ -1274,6 +1277,12 @@ iperf_init_test(struct iperf_test *test)
     SLIST_FOREACH(sp, &test->streams, streams) {
 	sp->result->start_time = sp->result->start_time_fixed = now;
     }
+
+    SLIST_FOREACH(sf, &test->subflows, subflows) {
+	sf->result->start_time = sf->result->start_time_fixed = now;
+    }
+
+    test->start_time = now;
 
     if (test->on_test_start)
         test->on_test_start(test);
@@ -1823,6 +1832,7 @@ JSON_read(int fd)
  */
 
 void
+
 add_to_interval_list(struct iperf_stream_result * rp, struct iperf_interval_results * new)
 {
     struct iperf_interval_results *irp;
@@ -2235,6 +2245,28 @@ iperf_reset_stats(struct iperf_test *test)
 }
 
 
+void
+save_sf_tcpinfo(struct iperf_subflow *sf, struct iperf_interval_results *irp)
+{
+    struct tcp_info ti;
+    struct mptcp_sub_getsockopt sub_gso;
+
+    socklen_t optlen = sizeof(struct mptcp_sub_getsockopt);
+    socklen_t tcp_info_len = sizeof(struct tcp_info);
+    sub_gso.id = sf->id;
+    sub_gso.level = IPPROTO_TCP;
+    sub_gso.optname = TCP_INFO;
+    sub_gso.optlen = &tcp_info_len;
+    sub_gso.optval = (char *) &ti;
+    int error =  getsockopt(sf->socket, IPPROTO_TCP, MPTCP_SUB_GETSOCKOPT,
+                               &sub_gso, &optlen);
+    if (error) {
+            perror("Ooops something went wrong with get tcp_info");
+            return;
+    }
+    irp->tcpInfo = ti;
+}
+
 /**************************************************************************/
 
 /**
@@ -2245,6 +2277,7 @@ void
 iperf_stats_callback(struct iperf_test *test)
 {
     struct iperf_stream *sp;
+    struct iperf_subflow *sf;
     struct iperf_stream_result *rp = NULL;
     struct iperf_interval_results *irp, temp;
 
@@ -2253,7 +2286,8 @@ iperf_stats_callback(struct iperf_test *test)
         rp = sp->result;
 
 	temp.bytes_transferred = test->sender ? rp->bytes_sent_this_interval : rp->bytes_received_this_interval;
-     
+        //fprintf(stderr, "stream: byte transfered: %lu\n", temp.bytes_transferred);
+
 	irp = TAILQ_LAST(&rp->interval_results, irlisthead);
         /* result->end_time contains timestamp of previous interval */
         if ( irp != NULL ) /* not the 1st interval */
@@ -2309,6 +2343,71 @@ iperf_stats_callback(struct iperf_test *test)
         add_to_interval_list(rp, &temp);
         rp->bytes_sent_this_interval = rp->bytes_received_this_interval = 0;
     }
+
+    SLIST_FOREACH(sf, &test->subflows, subflows) {
+        rp = sf->result;
+        fprintf(stderr, "read subflow: id = %d\n", sf->id);
+
+        irp = TAILQ_LAST(&rp->interval_results, irlisthead);
+
+        /* result->end_time contains timestamp of previous interval */
+        if ( irp != NULL ) /* not the 1st interval */
+            memcpy(&temp.interval_start_time, &rp->end_time, sizeof(struct timeval));
+        else {
+            /* or use timestamp from beginning */
+            /* Todo: determine start time of each subflow precisely */
+            memcpy(&rp->start_time          , &test->start_time, sizeof(struct timeval));
+            memcpy(&temp.interval_start_time, &test->start_time, sizeof(struct timeval));
+        }
+        /* now save time of end of this interval */
+        gettimeofday(&rp->end_time, NULL);
+        memcpy(&temp.interval_end_time, &rp->end_time, sizeof(struct timeval));
+
+        temp.interval_duration = timeval_diff(&temp.interval_start_time, &temp.interval_end_time);
+        //fprintf(stderr, "test->start_time: %ld, interval_start_time: %ld, interval_end_time:%ld \n",
+        //        test->start_time.tv_sec, temp.interval_start_time.tv_sec, temp.interval_end_time.tv_sec);
+
+        save_sf_tcpinfo(sf, &temp);
+
+        if (test->sender)
+            temp.bytes_transferred = temp.tcpInfo.tcpi_bytes_acked - rp->bytes_sent;
+        else
+            temp.bytes_transferred = temp.tcpInfo.tcpi_bytes_received - rp->bytes_received;
+        /*
+        printf("subflow: temp.tcpInfo.tcpi_bytes_received: %llu, rp->bytes_received: %llu\n",
+                temp.tcpInfo.tcpi_bytes_received, rp->bytes_received);
+        printf("subflow: temp.tcpInfo.tcpi_bytes_sent: %llu,     rp->bytes_sent: %llu\n",
+                temp.tcpInfo.tcpi_bytes_acked,    rp->bytes_sent);
+        */
+        rp->bytes_received = temp.tcpInfo.tcpi_bytes_received;
+        rp->bytes_sent = temp.tcpInfo.tcpi_bytes_acked;
+        //fprintf(stderr, "subflow: byte transfered: %llu\n", temp.bytes_transferred);
+
+        if (test->sender && test->sender_has_retransmits) {
+            long total_retrans = get_total_retransmits(&temp);
+            temp.interval_retrans = total_retrans - rp->stream_prev_total_retrans;
+            rp->stream_retrans += temp.interval_retrans;
+            rp->stream_prev_total_retrans = total_retrans;
+
+            temp.snd_cwnd = get_snd_cwnd(&temp);
+            if (temp.snd_cwnd > rp->stream_max_snd_cwnd) {
+                rp->stream_max_snd_cwnd = temp.snd_cwnd;
+            }
+
+            temp.rtt = get_rtt(&temp);
+            if (temp.rtt > rp->stream_max_rtt) {
+                rp->stream_max_rtt = temp.rtt;
+            }
+            if (rp->stream_min_rtt == 0 ||
+                temp.rtt < rp->stream_min_rtt) {
+                rp->stream_min_rtt = temp.rtt;
+            }
+            rp->stream_sum_rtt += temp.rtt;
+            rp->stream_count_rtt++;
+        }
+        add_to_interval_list(rp, &temp);
+        rp->bytes_sent_this_interval = rp->bytes_received_this_interval = 0;
+    }
 }
 
 /**
@@ -2347,8 +2446,11 @@ iperf_print_intermediate(struct iperf_test *test)
         json_interval_streams = NULL;
     }
 
+
+#if (false)
+// to bypass the statistics of streams
     SLIST_FOREACH(sp, &test->streams, streams) {
-        print_interval_results(test, sp, json_interval_streams);
+        //print_interval_results(test, sp, json_interval_streams);
 	/* sum up all streams */
 	irp = TAILQ_LAST(&sp->result->interval_results, irlisthead);
 	if (irp == NULL) {
@@ -2416,6 +2518,66 @@ iperf_print_intermediate(struct iperf_test *test)
 	    }
 	}
 	}
+    }
+#endif
+    /* now stats and print the subflows */
+    bytes = 0;
+    retransmits  = 0;
+    total_packets= 0;
+    lost_packets = 0;
+    avg_jitter = 0.0;
+    struct iperf_subflow *sf = NULL;
+
+    SLIST_FOREACH(sf, &test->subflows, subflows) {
+        print_sf_interval_results(test, sf, json_interval_streams);
+	irp = TAILQ_LAST(&sf->result->interval_results, irlisthead);
+	if (irp == NULL) {
+	    iperf_err(test, "iperf_print_intermediate error: interval_results is NULL");
+	    return;
+	}
+        bytes += irp->bytes_transferred;
+	if (test->protocol->id == Ptcp) {
+	    if (test->sender && test->sender_has_retransmits) {
+		retransmits += irp->interval_retrans;
+	    }
+	} else {
+            total_packets += irp->interval_packet_count;
+            lost_packets += irp->interval_cnt_error;
+            avg_jitter += irp->jitter;
+	}
+    }
+
+    /* next build string with sum of all subflows */
+    if (test->num_subflows > 1 || test->json_output) {
+        sf = SLIST_FIRST(&test->subflows); /* reset back to 1st subflow */
+
+        irp = TAILQ_LAST(&sf->result->interval_results, irlisthead);    /* use 1st subflow for timing info */
+
+        unit_snprintf(ubuf, UNIT_LEN, (double) bytes, 'A');
+	bandwidth = (double) bytes / (double) irp->interval_duration;
+        unit_snprintf(nbuf, UNIT_LEN, bandwidth, test->settings->unit_format);
+
+        start_time = timeval_diff(&sf->result->start_time,&irp->interval_start_time);
+        end_time = timeval_diff(&sf->result->start_time,&irp->interval_end_time);
+	if (test->protocol->id == Ptcp || test->protocol->id == Psctp) {
+	    if (test->sender && test->sender_has_retransmits) {
+		/* Interval sum, TCP with retransmits. */
+		if (test->json_output)
+		    cJSON_AddItemToObject(json_interval, "sum", iperf_json_printf(
+                        "start: %f  end: %f  seconds: %f  bytes: %d  bits_per_second: %f  retransmits: %d  omitted: %b",
+                         (double) start_time, (double) end_time, (double) irp->interval_duration, (int64_t) bytes, bandwidth * 8, (int64_t) retransmits, irp->omitted));
+		else
+		    iprintf(test, report_sum_bw_retrans_format, start_time, end_time, ubuf, nbuf, retransmits, irp->omitted?report_omitted:""); /* XXX irp->omitted or test->omitting? */
+	    } else {
+		/* Interval sum, TCP without retransmits. */
+		if (test->json_output)
+		    cJSON_AddItemToObject(json_interval, "sum", iperf_json_printf(
+                        "start: %f  end: %f  seconds: %f  bytes: %d  bits_per_second: %f  omitted: %b",
+                         (double) start_time, (double) end_time, (double) irp->interval_duration, (int64_t) bytes, bandwidth * 8, test->omitting));
+		else
+		    iprintf(test, report_sum_bw_format, start_time, end_time, ubuf, nbuf, test->omitting?report_omitted:"");
+	    }
+        }
     }
 }
 
@@ -2744,6 +2906,80 @@ print_interval_results(struct iperf_test *test, struct iperf_stream *sp, cJSON *
 
     if (test->logfile || test->forceflush)
         iflush(test);
+}
+
+/**
+ * Print the interval results for one subflow.
+ */
+static void
+print_sf_interval_results(struct iperf_test *test, struct iperf_subflow *sf, cJSON *json_interval_streams)
+{
+    char ubuf[UNIT_LEN];
+    char nbuf[UNIT_LEN];
+    char cbuf[UNIT_LEN];
+    double st = 0., et = 0.;
+    struct iperf_interval_results *irp = NULL;
+    double bandwidth;
+
+    irp = TAILQ_LAST(&sf->result->interval_results, irlisthead); /* get last entry in linked list */
+    if (irp == NULL) {
+	iperf_err(test, "print_interval_results error: interval_results is NULL");
+        return;
+    }
+    if (!test->json_output) {
+	/* First stream? */
+	if (sf == SLIST_FIRST(&test->subflows)) {
+	    /* It it's the first interval, print the header;
+	    ** else if there's more than one stream, print the separator;
+	    ** else nothing.
+	    */
+	    if (timeval_equals(&sf->result->start_time, &irp->interval_start_time)) {
+		if (test->protocol->id == Ptcp || test->protocol->id == Psctp) {
+		    if (test->sender && test->sender_has_retransmits)
+			iprintf(test, "%s", report_bw_retrans_cwnd_header);
+		    else
+			iprintf(test, "%s", report_bw_header);
+		} else {
+		    if (test->sender)
+			iprintf(test, "%s", report_bw_udp_sender_header);
+		    else
+			iprintf(test, "%s", report_bw_udp_header);
+		}
+	    } else if (test->num_streams > 1)
+		iprintf(test, "%s", report_bw_separator);
+	}
+    }
+
+    unit_snprintf(ubuf, UNIT_LEN, (double) (irp->bytes_transferred), 'A');
+    bandwidth = (double) irp->bytes_transferred / (double) irp->interval_duration;
+    unit_snprintf(nbuf, UNIT_LEN, bandwidth, test->settings->unit_format);
+
+    st = timeval_diff(&sf->result->start_time, &irp->interval_start_time);
+    et = timeval_diff(&sf->result->start_time, &irp->interval_end_time);
+
+    if (test->protocol->id == Ptcp || test->protocol->id == Psctp) {
+	if (test->sender && test->sender_has_retransmits) {
+	    /* Interval, TCP with retransmits. */
+	    if (test->json_output)
+		cJSON_AddItemToArray(json_interval_streams, iperf_json_printf(
+                    "socket: %d  start: %f  end: %f  seconds: %f  bytes: %d  bits_per_second: %f  retransmits: %d  snd_cwnd:  %d  rtt:  %d  omitted: %b",
+                    (int64_t) sf->socket, (double) st, (double) et, (double) irp->interval_duration, (int64_t) irp->bytes_transferred,
+                    bandwidth * 8, (int64_t) irp->interval_retrans, (int64_t) irp->snd_cwnd, (int64_t) irp->rtt, irp->omitted));
+	    else {
+		unit_snprintf(cbuf, UNIT_LEN, irp->snd_cwnd, 'A');
+		iprintf(test, report_bw_retrans_cwnd_format, sf->socket, st, et, ubuf, nbuf, irp->interval_retrans, cbuf, irp->omitted?report_omitted:"");
+	    }
+	} else {
+	    /* Interval, TCP without retransmits. */
+	    if (test->json_output)
+		cJSON_AddItemToArray(json_interval_streams, iperf_json_printf(
+                    "socket: %d  start: %f  end: %f  seconds: %f  bytes: %d  bits_per_second: %f  omitted: %b",
+                     (int64_t) sf->socket, (double) st, (double) et, (double) irp->interval_duration, (int64_t) irp->bytes_transferred,
+                     bandwidth * 8, irp->omitted));
+	    else
+		iprintf(test, report_bw_format, sf->socket, st, et, ubuf, nbuf, irp->omitted?report_omitted:"");
+	}
+    }
 }
 
 /**************************************************************************/

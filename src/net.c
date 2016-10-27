@@ -71,7 +71,6 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
     struct addrinfo hints, *local_res, *server_res;
     int s;
 
-    printf("Try to get local address\n");
     /* get local address */
     if (local) {
         memset(&hints, 0, sizeof(hints));
@@ -83,7 +82,7 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
             return -1;
         }
     }
-    printf("Got local address\n");
+    // printf("Got local address\n");
 
     /* get server address */
     memset(&hints, 0, sizeof(hints));
@@ -92,7 +91,7 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
     if (getaddrinfo(server, NULL, &hints, &server_res) != 0)
         return -1;
 
-    printf("Got server address, opening socket \n");
+    // printf("Got server address, opening socket \n");
 
     s = socket(server_res->ai_family, proto, 0);
     perror("Create socket");
@@ -121,7 +120,7 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
         freeaddrinfo(local_res);
     }
 
-    perror("Bind to local address");
+    // perror("Bind to local address");
 
     switch(server_res->ai_family) {
         case AF_INET:

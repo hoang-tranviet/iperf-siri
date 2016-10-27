@@ -206,6 +206,7 @@ void      iperf_free_stream(struct iperf_stream * sp);
 int has_tcpinfo(void);
 int has_tcpinfo_retransmits(void);
 void save_tcpinfo(struct iperf_stream *sp, struct iperf_interval_results *irp);
+void save_sf_tcpinfo(struct iperf_subflow *sf, struct iperf_interval_results *irp);
 long get_total_retransmits(struct iperf_interval_results *irp);
 long get_snd_cwnd(struct iperf_interval_results *irp);
 long get_rtt(struct iperf_interval_results *irp);
