@@ -276,7 +276,9 @@ struct iperf_test
     double remote_cpu_util[3];                     /* cpu utilization for the remote host/client - total, user, system */
 
     int       num_streams;                      /* total streams in the test (-P) */
-    int       num_subflows;                      /* total mptcp subflows in the test */
+    int       num_subflows;                      /* total mptcp subflows in the test (-m or --subflow)*/
+    int       mptcp_enabled;
+    int       remote_iperf_supports_mptcp;
 
     iperf_size_t bytes_sent;
     iperf_size_t blocks_sent;
@@ -285,6 +287,7 @@ struct iperf_test
     //        ( head    , type )        var;
     SLIST_HEAD(slisthead, iperf_stream) streams;
     SLIST_HEAD(sflisthead, iperf_subflow) subflows;
+    SLIST_HEAD(s2listhead, iperf_subflow) remote_subflows;
     struct iperf_settings *settings;
 
     SLIST_HEAD(plisthead, protocol) protocols;

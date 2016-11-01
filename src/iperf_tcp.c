@@ -420,6 +420,24 @@ void create_subflow(struct iperf_test *test, int s, struct iperf_subflow *sf, st
     if (test->debug)    printf("\noptlen: %u, sub_tuple: %lu \n", optlen, sizeof(sub_tuple));
 }
 
+void insert_subflow(struct iperf_test *test, int s, uint8_t id)
+{
+    struct iperf_subflow *sf;
+    /* check if the subflow already existed in the list */
+    SLIST_FOREACH(sf, &test->subflows, subflows) {
+        if(sf->id == id)    return;
+    }
+    sf = malloc(sizeof(struct iperf_subflow));
+    sf->id = id;
+    sf->socket = s;
+    sf->result = malloc(sizeof(struct iperf_stream_result));
+    memset(sf->result, 0, sizeof(struct iperf_stream_result));
+    sf->result->bytes_received = sf->result->bytes_sent = 0;
+    TAILQ_INIT(&sf->result->interval_results);
+
+    SLIST_INSERT_HEAD(&test->subflows, sf, subflows);
+}
+
 void get_subflow_tuple(struct iperf_test *test, int s, uint8_t  id)
 {
     unsigned int optlen;
@@ -454,18 +472,6 @@ void get_subflow_tuple(struct iperf_test *test, int s, uint8_t  id)
         inet_ntop(sin6->sin6_family, &(sin6->sin6_addr), str, INET6_ADDRSTRLEN);
         printf("\t ip dst: %s dst port: %hu\n", str, ntohs(sin6->sin6_port));
     }
-    struct iperf_subflow *sf;
-    sf = malloc(sizeof(struct iperf_subflow));
-    sf->id = id;
-    sf->socket = s;
-    sf->result = malloc(sizeof(struct iperf_stream_result));
-    memset(sf->result, 0, sizeof(struct iperf_stream_result));
-    sf->result->bytes_received = sf->result->bytes_sent = 0;
-    TAILQ_INIT(&sf->result->interval_results);
-
-//    sf->local_addr = malloc(sizeof(struct sockaddr_storage));
-    SLIST_INSERT_HEAD(&test->subflows, sf, subflows);
-
 }
 
 void remove_sf_list(struct iperf_test *test)
@@ -479,28 +485,38 @@ void remove_sf_list(struct iperf_test *test)
     }
 }
 
-int get_subflow_ids(struct iperf_test *test, int s)
+int get_subflow_ids(struct iperf_test *test, int get_tuple, int s)
 {
-        unsigned int optlen;
-        // what is the correct length?
-        optlen=42;
-        struct mptcp_sub_ids *ids;
-        ids = malloc(optlen);
-        int e = getsockopt(s, IPPROTO_TCP, MPTCP_GET_SUB_IDS, ids, &optlen);
-        if (e < 0) {
-            perror("get subflow ids");
-            return 0;
+    unsigned int optlen;
+    // what is the correct length?
+    optlen = 42;
+    struct mptcp_sub_ids *ids;
+    ids = malloc(optlen);
+
+    int e = getsockopt(s, IPPROTO_TCP, MPTCP_GET_SUB_IDS, ids, &optlen);
+    if (e < 0) {
+        if (test->debug)    perror("get subflow ids");
+        /* this means MPTCP does not work */
+        test->mptcp_enabled = 0;
+        return 0;
+    }
+    int i;
+    if (test->debug)        printf(" Num of subflows: %d \n", ids->sub_count);
+    for(i = 0; i < ids->sub_count; i++){
+        if (test->debug) {
+            printf("  Subflow id: %i\t",  ids->sub_status[i].id);
+          //printf("  is attached: %i\n", ids->sub_status[i].attached);
+          //printf("  pre-established: %i\n", ids->sub_status[i].pre_established);
+            printf("  fully established: %i\n", ids->sub_status[i].fully_established);
         }
-        int i;
-        printf("sub_count:%d \n", ids->sub_count);
-        for(i = 0; i < ids->sub_count; i++){
-            printf("Subflow id: %i\n",  ids->sub_status[i].id);
-            printf(" is attached: %i\n", ids->sub_status[i].attached);
-            printf(" pre-established: %i\n", ids->sub_status[i].pre_established);
-            printf(" fully established: %i\n", ids->sub_status[i].fully_established);
+        if (get_tuple)
             get_subflow_tuple(test, s, ids->sub_status[i].id);
+        if (ids->sub_status[i].fully_established){
+            insert_subflow(test, s, ids->sub_status[i].id);
+            test->mptcp_enabled = 1;
         }
-        return ids->sub_count;
+    }
+    return ids->sub_count;
 }
 
 
@@ -699,7 +715,7 @@ iperf_tcp_connect(struct iperf_test *test)
     printf("number of subflows: %d\n", test->num_subflows);
     struct iperf_subflow *sf;
 
-    /* create subflows as requested in the list
+    /* create subflows as requested by the slist,
     test->subflows is the head of list */
 
     SLIST_FOREACH( sf, &test->subflows, subflows) {
@@ -708,7 +724,7 @@ iperf_tcp_connect(struct iperf_test *test)
     }
 
     remove_sf_list(test);
-    get_subflow_ids(test, s);
+    get_subflow_ids(test, 1, s);
 
     freeaddrinfo(server_res);
 

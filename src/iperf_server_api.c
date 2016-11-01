@@ -274,6 +274,8 @@ iperf_test_reset(struct iperf_test *test)
     test->done = 0;
 
     SLIST_INIT(&test->streams);
+    SLIST_INIT(&test->subflows);
+    SLIST_INIT(&test->remote_subflows);
 
     test->role = 's';
     set_protocol(test, Ptcp);

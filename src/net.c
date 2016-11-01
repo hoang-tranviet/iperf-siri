@@ -94,7 +94,7 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
     // printf("Got server address, opening socket \n");
 
     s = socket(server_res->ai_family, proto, 0);
-    perror("Create socket");
+    //perror("Create socket");
     if (s < 0) {
 	if (local)
 	    freeaddrinfo(local_res);
@@ -140,7 +140,7 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
 	freeaddrinfo(server_res);
         return -1;
     }
-    printf("connect to server succeed\n");
+    //printf("connect to server succeed\n");
 
     freeaddrinfo(server_res);
     return s;
