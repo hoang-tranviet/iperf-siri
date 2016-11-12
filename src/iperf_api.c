@@ -1212,7 +1212,7 @@ iperf_create_send_timers(struct iperf_test * test)
 }
 
 /**
- * iperf_exchange_parameters - handles the param_Exchange part for client
+ * iperf_exchange_parameters - called by both client and server
  *
  */
 
