@@ -89,6 +89,7 @@ static int get_results(struct iperf_test *test);
 static int diskfile_send(struct iperf_stream *sp);
 static int diskfile_recv(struct iperf_stream *sp);
 static int JSON_write(int fd, cJSON *json);
+static int save_client_results_to_file(struct iperf_test *test);
 static void print_interval_results(struct iperf_test *test, struct iperf_stream *sp, cJSON *json_interval_streams);
 static void print_sf_interval_results(struct iperf_test *test, struct iperf_subflow *sf, cJSON *json_interval_streams);
 static cJSON *JSON_read(int fd);
@@ -1080,6 +1081,8 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
 	    i_errno = IELOGFILE;
 	    return -1;
 	}
+    } else {
+	test->outfile = stdout;
     }
 
     /* Check flag / role compatibility. */
@@ -1854,6 +1857,7 @@ get_results(struct iperf_test *test)
                         j_client_output = cJSON_DetachItemFromObject(j, "client_output_json");
                         if (j_client_output != NULL) {
                             test->json_client_output = j_client_output;
+                            save_client_results_to_file(test);
                         }
                     }
                 }
@@ -3291,22 +3295,23 @@ print_sf_interval_results(struct iperf_test *test, struct iperf_subflow *sf, cJS
              iperf_err(test, "print_sf_interval_results error: interval_results is NULL");
         return;
     }
-
-    /* First stream? */
-    if (sf == SLIST_FIRST(&test->subflows)) {
-        /* It it's the first interval, print the header;
-        ** else if there's more than one stream, print the separator;
-        ** else nothing.
-        */
-        if (timeval_equals(&sf->result->start_time, &irp->interval_start_time)) {
-            if (test->protocol->id == Ptcp || test->protocol->id == Psctp) {
-                if (test->sender && test->sender_has_retransmits)
-                    iprintf(test, "%s", report_bw_retrans_cwnd_header);
-                else
-                    iprintf(test, "%s", report_bw_header);
-            }
-        } else if (test->num_streams > 1)
-            iprintf(test, "%s", report_bw_separator);
+    if (!test->json_output) {
+	/* First stream? */
+	if (sf == SLIST_FIRST(&test->subflows)) {
+	    /* It it's the first interval, print the header;
+	    ** else if there's more than one stream, print the separator;
+	    ** else nothing.
+	    */
+	    if (timeval_equals(&sf->result->start_time, &irp->interval_start_time)) {
+		if (test->protocol->id == Ptcp || test->protocol->id == Psctp) {
+		    if (test->sender && test->sender_has_retransmits)
+			iprintf(test, "%s", report_bw_retrans_cwnd_header);
+		    else
+			iprintf(test, "%s", report_bw_header);
+		}
+	    } else if (test->num_streams > 1)
+		iprintf(test, "%s", report_bw_separator);
+	}
     }
 
     unit_snprintf(ubuf, UNIT_LEN, (double) (irp->bytes_transferred), 'A');
@@ -3674,25 +3679,8 @@ iperf_json_finish(struct iperf_test *test)
     if (test->json_output_string == NULL)
         return -1;
 
-    // do not print to test->outfile (which is stdout by default)
-    // fprintf(test->outfile, "%s\n", test->json_output_string);
-
-    /* Write test result (json) to auto-named file instead */
-    char* json_filename = malloc(80*sizeof(char));
-    if (!json_filename)
-        return -1;
-    sprintf(json_filename, "iperf_test_%s_%s_%lu.json",
-                        test->role == 'c' ? "client" : "server",
-                        test->sender ? "isSender" : "isReceiver",
-                        (unsigned long) test->start_time.tv_sec);
-    printf("writing results to json file: ./%s", json_filename);
-    FILE* json_file = fopen(json_filename,"w");
-    if (!json_file)
-        return -1;
-    fprintf(json_file, "%s\n", test->json_output_string);
-    fclose(json_file);
-    free(json_filename);
-    json_filename = NULL;
+    if (test->json_output)
+        fprintf(test->outfile, "%s\n", test->json_output_string);
 
     iflush(test);
     cJSON_Delete(test->json_top);
@@ -3700,6 +3688,28 @@ iperf_json_finish(struct iperf_test *test)
     return 0;
 }
 
+
+static int
+save_client_results_to_file(struct iperf_test *test) {
+/* Write test result (json) to auto-named file instead */
+        char* json_filename = malloc(80*sizeof(char));
+        if (!json_filename)
+            return -1;
+        sprintf(json_filename, "iperf_test_%s_%s_%lu.json",
+                            test->role == 'c' ? "client" : "server",
+                            test->sender ? "isSender" : "isReceiver",
+                            (unsigned long) test->start_time.tv_sec);
+        printf("writing results to json file: ./%s \n\n", json_filename);
+        FILE* json_file = fopen(json_filename,"w");
+        if (!json_file)
+            return -1;
+        char *output_string = cJSON_Print(test->json_client_output);
+        fprintf(json_file, "%s\n", output_string);
+        fclose(json_file);
+        free(json_filename);
+        json_filename = NULL;
+        return 0;
+}
 
 /* CPU affinity stuff - Linux and FreeBSD only. */
 

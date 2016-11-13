@@ -240,8 +240,8 @@ struct iperf_test
     char     *congestion;			/* -C option */
     char     *pidfile;				/* -P option */
 
-    char     *logfile;				/* --logfile option */
-    FILE     *outfile;
+    char     *logfile;				/* --logfile option, looks like iperf3 have not used it yet */
+    FILE     *outfile;                          /* main output, is stdout by default */
 
     int       ctrl_sck;
     int       listener;

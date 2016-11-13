@@ -106,7 +106,7 @@ const char usage_longstr[] = "Usage: iperf [-s|-c host] [options]\n"
 #endif /* HAVE_CPU_AFFINITY */
                            "  -B, --bind      <host>    bind to a specific interface\n"
                            "  -V, --verbose             more detailed output\n"
-                           "  -J, --json                output in JSON format\n"
+                           "  -J, --json                output in JSON format in a file named iperf_test_(server/client)_(isSender/isReceiver)_timestamp.json\n"
                            "  --logfile f               send output to a log file\n"
                            "  --forceflush              force flushing output at every interval\n"
                            "  -d, --debug               emit debugging output\n"
