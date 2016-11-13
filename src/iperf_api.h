@@ -75,8 +75,12 @@ struct sockaddr;
 #define ACCESS_DENIED (-1)
 #define SERVER_ERROR (-2)
 
-// Helper function to get IP string from sockaddr
-char *get_ip_str(const struct sockaddr *sa);
+/* Get IP string from sockaddr */
+char *ip_to_str(const struct sockaddr *sa);
+struct sockaddr * str_to_ip(char * ip_str);
+
+/* Retrieve IP addrs */
+void	get_local_IP_list( struct iperf_test* ipt );
 
 /* Getter routines for some fields inside iperf_test. */
 int	iperf_get_verbose( struct iperf_test* ipt );

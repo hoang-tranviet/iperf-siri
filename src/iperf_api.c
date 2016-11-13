@@ -41,6 +41,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
+#include <ifaddrs.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <pthread.h>
@@ -54,6 +55,8 @@
 #include <sched.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#include <net/if.h>
+//#include <sys/ioctl.h>
 
 #if defined(HAVE_CPUSET_SETAFFINITY)
 #include <sys/param.h>
@@ -80,6 +83,7 @@
 /* Forwards. */
 static int send_parameters(struct iperf_test *test);
 static int get_parameters(struct iperf_test *test);
+static int client_get_parameters(struct iperf_test *test);
 static int send_results(struct iperf_test *test);
 static int get_results(struct iperf_test *test);
 static int diskfile_send(struct iperf_stream *sp);
@@ -488,25 +492,7 @@ set_protocol(struct iperf_test *test, int prot_id)
     return -1;
 }
 
-#include <stdbool.h>
-#include <ifaddrs.h>
-bool isHostInterface(char *iface){
-    struct ifaddrs  *ifaddr, *ifa;
-
-    if (getifaddrs(&ifaddr) == -1)    {
-        perror("getifaddrs");
-        exit(EXIT_FAILURE);
-    }
-    /* Walk through linked list, maintaining head pointer so we
-       can free list later */
-    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
-        if(strcmp(ifa->ifa_name, iface)==0)
-            return true;
-    freeifaddrs(ifaddr);
-    return false;
-}
-
-char *get_ip_str(const struct sockaddr *sa)
+char *ip_to_str(const struct sockaddr *sa)
 {
     char *s = malloc(INET6_ADDRSTRLEN);
     switch(sa->sa_family) {
@@ -542,6 +528,66 @@ struct sockaddr * str_to_ip(char * ip_str) {
         if (rp != NULL)    return rp->ai_addr;
     return NULL;
 }
+
+
+/* Get all addresses of non-loopback interfaces,
+ * then put them in the test->ip_addrs list */
+void
+get_local_IP_list(struct iperf_test *test)
+{
+    struct ifaddrs *ifaddr, *ifa;
+    int family, s, n;
+    char host[NI_MAXHOST];
+
+	SLIST_INIT(&test->ip_addrs);
+
+	if (getifaddrs(&ifaddr) == -1) {
+        perror("getifaddrs");
+        exit(EXIT_FAILURE);
+    }
+
+    for (ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++)
+    {
+        if (ifa->ifa_addr == NULL)
+            continue;
+
+        if (!(ifa->ifa_flags & IFF_UP) || (ifa->ifa_flags & IFF_LOOPBACK))
+            continue;
+
+        family = ifa->ifa_addr->sa_family;
+
+        /* do not save link-local ipv6 */
+        if (family == AF_INET6) {
+            struct sockaddr_in6 *addr = (struct sockaddr_in6 *)(ifa->ifa_addr);
+            if (IN6_IS_ADDR_LINKLOCAL(&addr->sin6_addr))
+                continue;
+        }
+
+        if (family == AF_INET || family == AF_INET6) {
+            s = getnameinfo(
+                    ifa->ifa_addr,
+                    (family == AF_INET) ?   sizeof(struct sockaddr_in) :
+                                            sizeof(struct sockaddr_in6),
+                    host, NI_MAXHOST,
+                    NULL, 0, NI_NUMERICHOST);
+
+            if (s != 0) {
+                printf("getnameinfo() failed: %s\n", gai_strerror(s));
+                exit(EXIT_FAILURE);
+            }
+
+            struct iperf_ip_addrs *ip = malloc(sizeof(struct iperf_ip_addrs));
+            memcpy(ip->ip, host, sizeof(host));
+            ip->family = family;
+            // printf("\t\t address: %s is up and family is: %d\n", ip->ip, ip->family);
+
+            /* add ip string to test->ip_addrs list */
+            SLIST_INSERT_HEAD(&test->ip_addrs, ip, ip_addrs);
+        }
+    }
+    freeifaddrs(ifaddr);
+}
+
 
 /************************** Iperf callback functions **************************/
 
@@ -859,58 +905,8 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
                 break;
             case 'm':
                 ; // semicolon to avoid stupid C error "a label can only be part of a statement"
-                char *str = strdup(optarg);
-                char *token;
-                struct iperf_subflow *sf;
+                test->requested_subflows = strdup(optarg);
                 test->mptcp_enabled = 1;
-
-                while ((token = strsep(&str, ",")))
-                {
-                    if (test->debug)    printf("%s \n",token);
-                    // this is initial subflow.
-                    if (test->num_subflows == 0) {
-                        // if this is an address, just store as local host bind_address
-                        if (!isHostInterface(token))
-                            test->bind_address = strdup(token);
-                        // if this is an interface, look up for its IP address
-                        else {
-                            test->bind_address = malloc(INET6_ADDRSTRLEN);
-                            struct sockaddr *sa = getIPfromInterface(test, token);
-                            test->bind_address  = get_ip_str(sa);
-                       }
-                    }
-                    // next subflows
-                    else {
-                        sf = (struct iperf_subflow *) malloc(sizeof(struct iperf_subflow));
-                        sf->local_addr = malloc(sizeof(struct sockaddr_storage));
-                        // if this is an interface, get its IP address first
-                        if (isHostInterface(token)) {
-                            sf->ifacename  = token;
-                            /* copy content from getIPfromInterface() to local_addr
-                             * cannot assign pointer directly, since it only makes
-                             * a shallow copy of pointer of ifaddr, whose contents are
-                             * destroyed by freeifaddrs(ifaddr) in getIPfromInterface()
-                             */
-                            *(sf->local_addr) = *getIPfromInterface(test, token);
-                            if (test->debug)    printf("sf address: %s\n", get_ip_str(sf->local_addr));
-                        }
-                        // if this is an address, just store it to sf->local_addr
-                        else {
-                            sf->local_addr = str_to_ip(token);
-                        }
-                        //printf("add list entry at pointer: %p ", sf->local_addr);
-                        //printf("  address family: %d %hu\n", sf->local_addr->sa_family, sf->local_addr->sa_family);
-                        // insert element 'sf' into head (test->subflows) of list
-                        SLIST_INSERT_HEAD(&test->subflows, sf, subflows);
-                    }
-                    test->num_subflows++;
-                }
-                free(str);
-
-                if (test->num_subflows > MAX_SUBFLOWS) {
-                    i_errno = IENUMSUBFLOWS;
-                    return -1;
-                }
                 client_flag = 1;
                 break;
             case 'R':
@@ -1345,10 +1341,17 @@ iperf_exchange_parameters(struct iperf_test *test)
         if (send_parameters(test) < 0)
             return -1;
 
+        if (client_get_parameters(test) < 0)
+            return -1;
+
     } else {
 
         if (get_parameters(test) < 0)
             return -1;
+
+        if (test->remote_iperf_supports_mptcp)
+            if (send_parameters(test) < 0)
+                return -1;
 
         if ((s = test->protocol->listen(test)) < 0) {
 	    if (iperf_set_send_state(test, SERVER_ERROR) != 0)
@@ -1408,6 +1411,9 @@ send_parameters(struct iperf_test *test)
 {
     int r = 0;
     cJSON *j;
+    cJSON *j_ip_list;
+    cJSON *j_ip;
+    struct iperf_ip_addrs *ip;
 
     j = cJSON_CreateObject();
     if (j == NULL) {
@@ -1420,11 +1426,25 @@ send_parameters(struct iperf_test *test)
 	    cJSON_AddTrueToObject(j, "udp");
         else if (test->protocol->id == Psctp)
             cJSON_AddTrueToObject(j, "sctp");
+        /* this iperf understands mptcp :) */
 	cJSON_AddTrueToObject(j, "mptcp");
 	cJSON_AddNumberToObject(j, "omit", test->omit);
 	if (test->server_affinity != -1)
 	    cJSON_AddNumberToObject(j, "server_affinity", test->server_affinity);
-	if (test->duration)
+
+        /* send available ip addresses to peer */
+        j_ip_list = cJSON_CreateArray();
+        cJSON_AddItemToObject(j, "ip_list", j_ip_list);
+
+        SLIST_FOREACH(ip, &test->ip_addrs, ip_addrs)
+        {
+            j_ip = cJSON_CreateObject();
+            cJSON_AddItemToArray(j_ip_list,j_ip);
+            cJSON_AddStringToObject(j_ip, "ip", ip->ip);
+            cJSON_AddNumberToObject(j_ip, "family", ip->family);
+        }
+
+	if ((test->duration) && (test->role == 'c'))
 	    cJSON_AddNumberToObject(j, "time", test->duration);
 	if (test->settings->bytes)
 	    cJSON_AddNumberToObject(j, "num", test->settings->bytes);
@@ -1476,6 +1496,53 @@ send_parameters(struct iperf_test *test)
 }
 
 /*************************************************************/
+
+static int
+client_get_parameters(struct iperf_test *test)
+{
+    cJSON *j;
+    cJSON *j_p;
+    cJSON *j_ip;
+    cJSON *j_ips;
+
+    j = JSON_read(test->ctrl_sck);
+
+    /* unmodified iperf server does not send parameter */
+    if (j == NULL) {
+        cJSON_Delete(j);
+        return (0);
+    }
+    if (test->debug) {
+        printf("get_parameters:\n%s\n", cJSON_Print(j));
+    }
+
+    if ((j_p = cJSON_GetObjectItem(j, "mptcp")) != NULL)
+        test->remote_iperf_supports_mptcp = 1;
+
+    j_ips = cJSON_GetObjectItem(j, "ip_list");
+    if (j_ips == NULL) {
+        i_errno = IERECVPARAMS;
+        cJSON_Delete(j);
+        return (-1);
+    }
+    SLIST_INIT(&test->remote_ip_addrs);
+    int n, i;
+    n = cJSON_GetArraySize(j_ips);
+    for (i=0; i<n; ++i) {
+        if ((j_ip = cJSON_GetArrayItem(j_ips, i)) != NULL) {
+            cJSON *j_ip_str = cJSON_GetObjectItem(j_ip, "ip");
+            cJSON *j_family = cJSON_GetObjectItem(j_ip, "family");
+
+            struct iperf_ip_addrs *ip = malloc(sizeof(struct iperf_ip_addrs));
+            strncpy(ip->ip, j_ip_str->valuestring, sizeof(ip->ip));
+            ip->family    = j_family->valueint;
+            /* add ip string to test->ip_addrs list */
+            SLIST_INSERT_HEAD(&test->remote_ip_addrs, ip, ip_addrs);
+        }
+    }
+    return 0;
+}
+
 
 static int
 get_parameters(struct iperf_test *test)

@@ -147,6 +147,9 @@ iperf_accept(struct iperf_test *test)
         }
 	FD_SET(test->ctrl_sck, &test->read_set);
 	if (test->ctrl_sck > test->max_fd) test->max_fd = test->ctrl_sck;
+	
+	/* Retrieve the local IP addresses list */
+	get_local_IP_list(test);
 
 	if (iperf_set_send_state(test, PARAM_EXCHANGE) != 0)
             return -1;
@@ -410,6 +413,10 @@ create_server_omit_timer(struct iperf_test * test)
 static void
 cleanup_server(struct iperf_test *test)
 {
+    /* reset all values */
+    test->num_subflows = 0;
+    test->remote_iperf_supports_mptcp = 0;
+
     /* Close open test sockets */
     close(test->ctrl_sck);
     close(test->listener);

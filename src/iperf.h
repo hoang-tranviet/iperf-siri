@@ -208,6 +208,12 @@ struct xbind_entry {
     TAILQ_ENTRY(xbind_entry) link;
 };
 
+struct iperf_ip_addrs {
+    char ip[2000];
+    int family;
+    SLIST_ENTRY(iperf_ip_addrs) ip_addrs;
+};
+
 struct iperf_test
 {
     char      role;                             /* 'c' lient or 's' erver */
@@ -216,6 +222,8 @@ struct iperf_test
     struct protocol *protocol;
     signed char state;
     char     *server_hostname;                  /* -c option */
+    SLIST_HEAD(iplisthead, iperf_ip_addrs)      ip_addrs;        /* get by get_local_IP_list() */
+    SLIST_HEAD(remoteips_head, iperf_ip_addrs)  remote_ip_addrs; /* get by parameter exchange */
     char     *tmp_template;
     char     *bind_address;                     /* first -B option */
     TAILQ_HEAD(xbind_addrhead, xbind_entry) xbind_addrs; /* all -X opts */
@@ -276,9 +284,12 @@ struct iperf_test
     double remote_cpu_util[3];                     /* cpu utilization for the remote host/client - total, user, system */
 
     int       num_streams;                      /* total streams in the test (-P) */
-    int       num_subflows;                      /* total mptcp subflows in the test (-m or --subflow)*/
+    int       num_subflows;                     /* total mptcp subflows in the test (-m or --subflow)*/
     int       mptcp_enabled;
     int       remote_iperf_supports_mptcp;
+
+    char     *requested_subflows;
+    struct timeval start_time;
 
     iperf_size_t bytes_sent;
     iperf_size_t blocks_sent;
