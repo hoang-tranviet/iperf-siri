@@ -329,25 +329,24 @@ iperf_tcp_connect(struct iperf_test *test)
     int s, opt;
     int saved_errno;
 
-    if (test->bind_address) {
-        memset(&hints, 0, sizeof(hints));
-        hints.ai_family = test->settings->domain;
-        hints.ai_socktype = SOCK_STREAM;
-        if (getaddrinfo(test->bind_address, NULL, &hints, &local_res) != 0) {
-            i_errno = IESTREAMCONNECT;
-            return -1;
-        }
-    }
-
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = test->settings->domain;
     hints.ai_socktype = SOCK_STREAM;
     snprintf(portstr, sizeof(portstr), "%d", test->server_port);
     if (getaddrinfo(test->server_hostname, portstr, &hints, &server_res) != 0) {
-	if (test->bind_address)
-	    freeaddrinfo(local_res);
         i_errno = IESTREAMCONNECT;
         return -1;
+    }
+
+    if (test->bind_address) {
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = server_res->ai_family;
+        hints.ai_socktype = SOCK_STREAM;
+        if (getaddrinfo(test->bind_address, NULL, &hints, &local_res) != 0) {
+            freeaddrinfo(server_res);
+            i_errno = IESTREAMCONNECT;
+            return -1;
+        }
     }
 
     if ((s = socket(server_res->ai_family, SOCK_STREAM, 0)) < 0) {
