@@ -209,6 +209,11 @@ iperf_handle_message_client(struct iperf_test *test)
         case PARAM_EXCHANGE:
             if (iperf_exchange_parameters(test) < 0)
                 return -1;
+            /* after exchanging parameters, we know if the client supports mptcp
+             * if so we initialize the json structures */
+            if ((test->remote_iperf_supports_mptcp) && (!test->json_output))
+                if (iperf_json_start(test))
+                    return -1;
             if (test->on_connect)
                 test->on_connect(test);
             break;
@@ -449,7 +454,8 @@ iperf_run_client(struct iperf_test * test)
 	}
     }
 
-    if (test->json_output) {
+    if ((test->json_output) ||
+        (test->remote_iperf_supports_mptcp)) {
 	if (iperf_json_finish(test) < 0)
 	    return -1;
     } else {
