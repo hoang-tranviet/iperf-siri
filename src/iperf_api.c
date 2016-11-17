@@ -1710,7 +1710,7 @@ send_results(struct iperf_test *test)
                 }
             }
         }
-        /* send MPTCP subflow results instead */
+        /* remote iperf understands MPTCP, send subflow results instead */
         else {
             cJSON *j_subflows;
             struct iperf_subflow *sp;
@@ -1721,6 +1721,9 @@ send_results(struct iperf_test *test)
                 i_errno = IEPACKAGERESULTS;
                 r = -1;
             } else {
+                if ((test->role == 'c') && (test->json_top != NULL)) {
+                    cJSON_AddItemReferenceToObject(j, "client_output_json", test->json_top);
+                }
                 cJSON_AddItemToObject(j, "subflows", j_subflows);
                 SLIST_FOREACH(sp, &test->subflows, subflows) {
                     j_subflow = cJSON_CreateObject();
@@ -1763,9 +1766,7 @@ get_results(struct iperf_test *test)
     cJSON *j_cpu_util_system;
     cJSON *j_sender_has_retransmits;
     int result_has_retransmits;
-    cJSON *j_subflows;
     int n, i;
-    cJSON *j_subflow;
     cJSON *j_id;
     cJSON *j_bytes;
     cJSON *j_retransmits;
@@ -1773,7 +1774,6 @@ get_results(struct iperf_test *test)
     int sid;
     iperf_size_t bytes_transferred;
     int retransmits;
-    struct iperf_subflow *sf = NULL;
 
     /* read results json from control channel */
     j = JSON_read(test->ctrl_sck);
@@ -1800,66 +1800,142 @@ get_results(struct iperf_test *test)
 	    result_has_retransmits = j_sender_has_retransmits->valueint;
 	    if (! test->sender)
 		test->sender_has_retransmits = result_has_retransmits;
-	    j_subflows = cJSON_GetObjectItem(j, "subflows");
-	    if (j_subflows == NULL) {
-            //i_errno = IERECVRESULTS;
-            r = 1;
-	    } else {
-	        n = cJSON_GetArraySize(j_subflows);
-		for (i=0; i<n; ++i) {
-		    j_subflow = cJSON_GetArrayItem(j_subflows, i);
-		    if (j_subflow == NULL) {
-			i_errno = IERECVRESULTS;
-			r = -1;
-		    } else {
-			j_id = cJSON_GetObjectItem(j_subflow, "id");
-			j_bytes = cJSON_GetObjectItem(j_subflow, "bytes");
-			j_retransmits = cJSON_GetObjectItem(j_subflow, "retransmits");
-			if (j_id == NULL || j_bytes == NULL || j_retransmits == NULL) {
-			    i_errno = IERECVRESULTS;
-			    r = -1;
-			} else {
-			    sid = j_id->valueint;
-			    bytes_transferred = j_bytes->valueint;
-			    retransmits = j_retransmits->valueint;
-			    SLIST_FOREACH(sf, &test->remote_subflows, subflows)
-				if (sf->id == sid) break;
-			    if (sf == NULL) {
-                                /* Create subflow struct and add to the list */
-                                sf = malloc(sizeof(struct iperf_subflow));
-                                sf->id = sid;
-                                sf->result = malloc(sizeof(struct iperf_stream_result));
-                                memset(sf->result, 0, sizeof(struct iperf_stream_result));
-                                SLIST_INSERT_HEAD(&test->remote_subflows, sf, subflows);
-			    }
-                            if (test->sender) {
-                                sf->result->bytes_received = bytes_transferred;
+
+            if (test->remote_iperf_supports_mptcp) {
+            /* get  subflows information */
+                cJSON *j_subflows;
+                cJSON *j_subflow;
+                struct iperf_subflow *sf = NULL;
+
+                j_subflows = cJSON_GetObjectItem(j, "subflows");
+                if (j_subflows == NULL) {
+                //i_errno = IERECVRESULTS;
+                r = 1;
+                } else {
+                    n = cJSON_GetArraySize(j_subflows);
+                    for (i=0; i<n; ++i) {
+                        j_subflow = cJSON_GetArrayItem(j_subflows, i);
+                        if (j_subflow == NULL) {
+                            i_errno = IERECVRESULTS;
+                            r = -1;
+                        } else {
+                            j_id = cJSON_GetObjectItem(j_subflow, "id");
+                            j_bytes = cJSON_GetObjectItem(j_subflow, "bytes");
+                            j_retransmits = cJSON_GetObjectItem(j_subflow, "retransmits");
+                            if (j_id == NULL || j_bytes == NULL || j_retransmits == NULL) {
+                                i_errno = IERECVRESULTS;
+                                r = -1;
                             } else {
-                                sf->result->bytes_sent = bytes_transferred;
-                                sf->result->stream_retrans = retransmits;
+                                sid = j_id->valueint;
+                                bytes_transferred = j_bytes->valueint;
+                                retransmits = j_retransmits->valueint;
+                                SLIST_FOREACH(sf, &test->remote_subflows, subflows)
+                                    if (sf->id == sid) break;
+                                if (sf == NULL) {
+                                    /* Create subflow struct and add to the list */
+                                    sf = malloc(sizeof(struct iperf_subflow));
+                                    sf->id = sid;
+                                    sf->result = malloc(sizeof(struct iperf_stream_result));
+                                    memset(sf->result, 0, sizeof(struct iperf_stream_result));
+                                    SLIST_INSERT_HEAD(&test->remote_subflows, sf, subflows);
+                                }
+                                if (test->sender) {
+                                    sf->result->bytes_received = bytes_transferred;
+                                } else {
+                                    sf->result->bytes_sent = bytes_transferred;
+                                    sf->result->stream_retrans = retransmits;
+                                }
                             }
-			}
-		    }
-		}
-		/*
-		 * If we're the client and we're supposed to get remote results,
-		 * look them up and process accordingly.
-		 */
-		if (test->role == 'c' && iperf_get_test_get_server_output(test)) {
-		    /* Look for JSON.  If we find it, grab the object so it doesn't get deleted. */
-		    j_server_output = cJSON_DetachItemFromObject(j, "server_output_json");
-		    if (j_server_output != NULL) {
-			test->json_server_output = j_server_output;
-		    }
-		    else {
-			/* No JSON, look for textual output.  Make a copy of the text for later. */
-			j_server_output = cJSON_GetObjectItem(j, "server_output_text");
-			if (j_server_output != NULL) {
-			    test->server_output_text = strdup(j_server_output->valuestring);
-			}
-		    }
-		}
-	    }
+                        }
+                    }
+                    /* If we're the server, also get the detailed intervals info */
+                    if (test->role == 's') {
+                        cJSON *j_client_output;
+                        j_client_output = cJSON_DetachItemFromObject(j, "client_output_json");
+                        if (j_client_output != NULL) {
+                            test->json_client_output = j_client_output;
+                        }
+                    }
+                }
+            } else {
+            /* peer is original iperf, get streams information */
+                cJSON *j_streams;
+                cJSON *j_stream;
+                cJSON *j_jitter;
+                cJSON *j_errors;
+                cJSON *j_packets;
+                double jitter;
+                int cerror, pcount;
+
+                struct iperf_stream *sp;
+
+                j_streams = cJSON_GetObjectItem(j, "streams");
+                if (j_streams == NULL) {
+                    i_errno = IERECVRESULTS;
+                    r = -1;
+                } else {
+                    n = cJSON_GetArraySize(j_streams);
+                    for (i=0; i<n; ++i) {
+                        j_stream = cJSON_GetArrayItem(j_streams, i);
+                        if (j_stream == NULL) {
+                            i_errno = IERECVRESULTS;
+                            r = -1;
+                        } else {
+                            j_id = cJSON_GetObjectItem(j_stream, "id");
+                            j_bytes = cJSON_GetObjectItem(j_stream, "bytes");
+                            j_retransmits = cJSON_GetObjectItem(j_stream, "retransmits");
+                            j_jitter = cJSON_GetObjectItem(j_stream, "jitter");
+                            j_errors = cJSON_GetObjectItem(j_stream, "errors");
+                            j_packets = cJSON_GetObjectItem(j_stream, "packets");
+                            if (j_id == NULL || j_bytes == NULL || j_retransmits == NULL || j_jitter == NULL || j_errors == NULL || j_packets == NULL) {
+                                i_errno = IERECVRESULTS;
+                                r = -1;
+                            } else {
+                                sid = j_id->valueint;
+                                bytes_transferred = j_bytes->valueint;
+                                retransmits = j_retransmits->valueint;
+                                jitter = j_jitter->valuedouble;
+                                cerror = j_errors->valueint;
+                                pcount = j_packets->valueint;
+                                SLIST_FOREACH(sp, &test->streams, streams)
+                                    if (sp->id == sid) break;
+                                if (sp == NULL) {
+                                    i_errno = IESTREAMID;
+                                    r = -1;
+                                } else {
+                                    if (test->sender) {
+                                        sp->jitter = jitter;
+                                        sp->cnt_error = cerror;
+                                        sp->packet_count = pcount;
+                                        sp->result->bytes_received = bytes_transferred;
+                                    } else {
+                                        sp->result->bytes_sent = bytes_transferred;
+                                        sp->result->stream_retrans = retransmits;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    /*
+                     * If we're the client and we're supposed to get remote results,
+                     * look them up and process accordingly.
+                     */
+                    if (test->role == 'c' && iperf_get_test_get_server_output(test)) {
+                        /* Look for JSON.  If we find it, grab the object so it doesn't get deleted. */
+                        j_server_output = cJSON_DetachItemFromObject(j, "server_output_json");
+                        if (j_server_output != NULL) {
+                            test->json_server_output = j_server_output;
+                        }
+                        else {
+                            /* No JSON, look for textual output.  Make a copy of the text for later. */
+                            j_server_output = cJSON_GetObjectItem(j, "server_output_text");
+                            if (j_server_output != NULL) {
+                                test->server_output_text = strdup(j_server_output->valuestring);
+                            }
+                        }
+                    }
+                }
+            }
 	}
 	cJSON_Delete(j);
     }
