@@ -315,7 +315,7 @@ iperf_tcp_listen(struct iperf_test *test)
 
         test->listener = s;
     }
-    
+
     return s;
 }
 

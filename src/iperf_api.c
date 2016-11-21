@@ -738,6 +738,7 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
         {"length", required_argument, NULL, 'l'},
         {"parallel", required_argument, NULL, 'P'},
         {"subflows", required_argument, NULL, 'm'},
+        {"scheduler", required_argument, NULL, OPT_SCHEDULER},
         {"reverse", no_argument, NULL, 'R'},
         {"window", required_argument, NULL, 'w'},
         {"bind", required_argument, NULL, 'B'},
@@ -910,6 +911,9 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
                 test->requested_subflows = strdup(optarg);
                 test->mptcp_enabled = 1;
                 client_flag = 1;
+                break;
+            case OPT_SCHEDULER:
+                test->mptcp_scheduler = strdup(optarg);
                 break;
             case 'R':
 		iperf_set_test_reverse(test, 1);
@@ -1357,6 +1361,7 @@ iperf_exchange_parameters(struct iperf_test *test)
             if (send_parameters(test) < 0)
                 return -1;
 
+        fprintf(stderr, "exchange param done, start a TCP listener \n");
         if ((s = test->protocol->listen(test)) < 0) {
 	    if (iperf_set_send_state(test, SERVER_ERROR) != 0)
                 return -1;
@@ -2151,6 +2156,7 @@ iperf_defaults(struct iperf_test *testp)
     testp->num_subflows = 0;
     testp->mptcp_enabled = 0;
     testp->remote_iperf_supports_mptcp = 0;
+    testp->mptcp_scheduler = NULL;
 
     testp->settings->domain = AF_UNSPEC;
     testp->settings->unit_format = 'a';

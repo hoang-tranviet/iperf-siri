@@ -140,6 +140,7 @@ const char usage_longstr[] = "Usage: iperf [-s|-c host] [options]\n"
                            "                               => establish two subflows: the initial one on eth1, the second one on eth2\n"
                            "                             --subflows 192.168.56.101,192.168.1.76\n"
                            "                               => establish two subflows on two local IP addresses.\n"
+                           "  --scheduler     <name>    specify the MPTCP scheduler to send out data (require patch from Per Hurtig).\n"
                            "  -R, --reverse             run in reverse mode (server sends, client receives)\n"
                            "  -w, --window    #[KMG]    set window size / socket buffer size\n"
 #if defined(HAVE_TCP_CONGESTION)

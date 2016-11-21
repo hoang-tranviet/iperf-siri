@@ -27,6 +27,10 @@
 #ifndef __NET_H
 #define __NET_H
 
+#define MPTCP_SCHED_NAME_MAX 16
+void set_mptcp_scheduler(int s, char *sched_opt);
+void get_mptcp_scheduler(int s);
+
 int netdial(int domain, int proto, char *local, int local_port, char *server, int port);
 int netannounce(int domain, int proto, char *local, int port);
 int Nread(int fd, char *buf, size_t count, int prot);

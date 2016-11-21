@@ -54,6 +54,7 @@ struct sockaddr;
 #define OPT_NUMSTREAMS 6
 #define OPT_FORCEFLUSH 7
 #define OPT_NO_FQ_SOCKET_PACING 9
+#define OPT_SCHEDULER 30
 
 /* states */
 #define TEST_START 1
