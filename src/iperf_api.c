@@ -2829,6 +2829,7 @@ iperf_print_results(struct iperf_test *test)
     }
 
     start_time = 0.;
+    end_time   = 0.;
     sp = SLIST_FIRST(&test->streams);
     /* 
      * If there is at least one stream, then figure out the length of time
