@@ -629,12 +629,9 @@ iperf_tcp_connect(struct iperf_test *test)
         return -1;
     }
 
-    /* if client did not get server's ip list, we set requested family based on server_res (-c) */
+    /* we set requested family based on server_res (-c) */
     if (test->mptcp_enabled) {
-        int family = 0;
-        if (SLIST_EMPTY(&test->remote_ip_addrs))
-            family = server_res->ai_family;
-        if (get_local_ips_for_subflows(test, family) < 0)
+        if (get_local_ips_for_subflows(test, server_res->ai_family) < 0)
             return -1;
     }
 
