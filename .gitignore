@@ -1,5 +1,6 @@
 *~
 *.swp
+*.json
 *.a
 *.la
 *.lo
