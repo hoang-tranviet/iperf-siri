@@ -467,6 +467,9 @@ void insert_subflow(struct iperf_test *test, int s, uint8_t id)
     sf->socket = s;
     sf->result = malloc(sizeof(struct iperf_stream_result));
     memset(sf->result, 0, sizeof(struct iperf_stream_result));
+    struct timeval now;
+    gettimeofday(&now, NULL);
+    sf->result->start_time     = now;
     sf->result->bytes_received = sf->result->bytes_sent = 0;
     TAILQ_INIT(&sf->result->interval_results);
 
