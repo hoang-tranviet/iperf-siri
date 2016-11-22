@@ -588,7 +588,7 @@ int get_local_ips_for_subflows(struct iperf_test *test, int family)
                  * a shallow copy of pointer of ifaddr, whose contents are
                  * destroyed by freeifaddrs(ifaddr) in getIPfromInterface()
                  */
-                *(sf->local_addr) = *getIPfromInterface(test, family, token);
+                (sf->local_addr) = getIPfromInterface(test, family, token);
                 if (test->debug)    printf("sf address: %s\n", ip_to_str(sf->local_addr));
             }
             // if this is an address, just store it
