@@ -3041,6 +3041,7 @@ iperf_print_sf_results(struct iperf_test *test)
 
 
     start_time = 0.;
+    end_time   = 0.;
     sp = SLIST_FIRST(&test->subflows);
     /* 
      * If there is at least one subflow, then figure out the length of time
