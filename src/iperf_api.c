@@ -493,10 +493,10 @@ set_protocol(struct iperf_test *test, int prot_id)
     return -1;
 }
 
-char *ip_to_str(const struct sockaddr *sa)
+char *ip_to_str(const struct sockaddr_storage *sa)
 {
     char *s = malloc(INET6_ADDRSTRLEN);
-    switch(sa->sa_family) {
+    switch(sa->ss_family) {
         case AF_INET:
             inet_ntop(AF_INET, &(((struct sockaddr_in *)sa)->sin_addr),
                     s, INET_ADDRSTRLEN);
@@ -508,12 +508,12 @@ char *ip_to_str(const struct sockaddr *sa)
             break;
 
         default:
-            snprintf(s, INET6_ADDRSTRLEN, "Unknown AF: %d", sa->sa_family);
+            snprintf(s, INET6_ADDRSTRLEN, "Unknown AF: %d", sa->ss_family);
     }
     return s;
 }
 
-struct sockaddr * str_to_ip(char * ip_str) {
+struct sockaddr_storage * str_to_ip(char * ip_str) {
     struct addrinfo hints, *result, *rp;
     int rv;
 
@@ -526,7 +526,8 @@ struct sockaddr * str_to_ip(char * ip_str) {
                 exit(1);
     }
     for (rp = result; rp != NULL; rp = rp->ai_next)
-        if (rp != NULL)    return rp->ai_addr;
+        if (rp != NULL)
+            return ((struct sockaddr_storage *) rp->ai_addr);
     return NULL;
 }
 

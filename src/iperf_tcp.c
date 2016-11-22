@@ -340,7 +340,7 @@ bool isHostInterface(char *iface){
 
 /* get IP of the requested interface and family
  * set family = 0 to get IP of any family if you don't care about family */
-struct sockaddr * getIPfromInterface(struct iperf_test *test, int family, char * iface)
+struct sockaddr_storage * getIPfromInterface(struct iperf_test *test, int family, char * iface)
 {
     if ((family != AF_INET) && (family != AF_INET6) && (family != 0)) {
         if (test->debug)
@@ -349,7 +349,8 @@ struct sockaddr * getIPfromInterface(struct iperf_test *test, int family, char *
     }
 
     struct ifaddrs  *ifaddr, *ifa;
-    struct sockaddr *addr;
+    struct sockaddr_storage *addr;
+    addr = malloc(sizeof(struct sockaddr_storage));
 
     if (getifaddrs(&ifaddr) == -1) {
         perror("getifaddrs");
@@ -362,7 +363,7 @@ struct sockaddr * getIPfromInterface(struct iperf_test *test, int family, char *
     {
         if (ifa->ifa_addr == NULL)
             continue;
-        addr = ifa->ifa_addr;
+        memcpy(addr, ifa->ifa_addr, sizeof(struct sockaddr_storage));
         /*
         if (test->debug) {
             char *host = ip_to_str(ifa->ifa_addr);
@@ -370,13 +371,13 @@ struct sockaddr * getIPfromInterface(struct iperf_test *test, int family, char *
             printf("\t  Address : <%s>\n", host );
         } */
         if(strcmp(ifa->ifa_name, iface) == 0) {
-            if (((addr->sa_family == AF_INET)  && (family == AF_INET))
-             || ((addr->sa_family == AF_INET6) && (family == AF_INET6))) {
+            if (((addr->ss_family == AF_INET)  && (family == AF_INET))
+             || ((addr->ss_family == AF_INET6) && (family == AF_INET6))) {
                 freeifaddrs(ifaddr);
                 return addr;
             }
             if ((family == 0) &&
-                ((addr->sa_family == AF_INET) || (addr->sa_family == AF_INET6))) {
+                ((addr->ss_family == AF_INET) || (addr->ss_family == AF_INET6))) {
                 freeifaddrs(ifaddr);
                 return addr;
             }
@@ -384,18 +385,19 @@ struct sockaddr * getIPfromInterface(struct iperf_test *test, int family, char *
     }
     fprintf(stderr, "cannot find IP for this interface\n");
     freeifaddrs(ifaddr);
+    free(addr);
     return NULL;
 }
 
 // mptcp create subflow :)
 
-void create_subflow(struct iperf_test *test, int s, struct iperf_subflow *sf, struct sockaddr * server_addr)
+void create_subflow(struct iperf_test *test, int s, struct iperf_subflow *sf, struct sockaddr_storage * server_addr)
 {
     unsigned int optlen;
     struct mptcp_sub_tuple *sub_tuple;
     char str[INET6_ADDRSTRLEN];
 
-    unsigned short family = sf->local_addr->sa_family;
+    unsigned short family = sf->local_addr->ss_family;
 
     if (family == AF_INET) {
         optlen = sizeof(struct mptcp_sub_tuple) +
@@ -443,7 +445,7 @@ void create_subflow(struct iperf_test *test, int s, struct iperf_subflow *sf, st
         addr->sin6_addr = ((struct sockaddr_in6*) server_addr)->sin6_addr;
     }
     else {
-        printf("Create subflow: Don't know this address family: %d %hu\n", family,sf->local_addr->sa_family);
+        printf("Create subflow: Don't know this address family: %d %hu\n", family,sf->local_addr->ss_family);
         return;
     }
 
@@ -568,7 +570,7 @@ int get_local_ips_for_subflows(struct iperf_test *test, int family)
             if (isHostInterface(token)) {
                 // look up for IP address
                 test->bind_address = malloc(INET6_ADDRSTRLEN);
-                struct sockaddr *sa = getIPfromInterface(test, family, token);
+                struct sockaddr_storage *sa = getIPfromInterface(test, family, token);
                 if (sa == NULL)
                     return -1;
                 test->bind_address  = ip_to_str(sa);
@@ -583,12 +585,7 @@ int get_local_ips_for_subflows(struct iperf_test *test, int family)
             if (isHostInterface(token)) {
                 // this is an interface, get its IP address first
                 sf->ifacename  = token;
-                /* copy content from getIPfromInterface() to local_addr
-                 * cannot assign pointer directly, since it only makes
-                 * a shallow copy of pointer of ifaddr, whose contents are
-                 * destroyed by freeifaddrs(ifaddr) in getIPfromInterface()
-                 */
-                (sf->local_addr) = getIPfromInterface(test, family, token);
+                sf->local_addr = getIPfromInterface(test, family, token);
                 if (test->debug)    printf("sf address: %s\n", ip_to_str(sf->local_addr));
             }
             // if this is an address, just store it
@@ -828,7 +825,7 @@ iperf_tcp_connect(struct iperf_test *test)
                 printf("not found any server IP in the same family\n");
         }
         else if (family == server_res->ai_family) {
-            create_subflow(test, s, sf, (struct sockaddr*) server_res->ai_addr);
+            create_subflow(test, s, sf, (struct sockaddr_storage*) server_res->ai_addr);
         }
         else
             printf("local IP does not in the same family with server IP\n");

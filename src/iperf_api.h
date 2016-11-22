@@ -76,8 +76,8 @@ struct sockaddr;
 #define SERVER_ERROR (-2)
 
 /* Get IP string from sockaddr */
-char *ip_to_str(const struct sockaddr *sa);
-struct sockaddr * str_to_ip(char * ip_str);
+char *ip_to_str(const struct sockaddr_storage *sa);
+struct sockaddr_storage * str_to_ip(char * ip_str);
 
 /* Retrieve IP addrs */
 void	get_local_IP_list( struct iperf_test* ipt );

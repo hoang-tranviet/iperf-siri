@@ -180,8 +180,8 @@ struct iperf_subflow {
     int       socket;
     int       addr_is_set;
     char      *ifacename;
-  //struct sockaddr_storage   *local_addr;
-    struct sockaddr           *local_addr;
+    struct sockaddr_storage   *local_addr;
+  //struct sockaddr           *local_addr;
     struct iperf_stream_result *result;
     SLIST_ENTRY(iperf_subflow) subflows;
 };
