@@ -4,26 +4,71 @@ Modify iperf3 to use MPTCP socket API
 
 This branch contains patches to iperf3 for utilizing MPTCP socket API.
 
+Below commands require to be run on an MPTCP-enabled Linux and
+with the patches for enhanced MPTCP socket API by Benjamin Hesmans.
+
+Server side
+-----------
+
 On server, just create iperf server as usual:
 
     $ src/iperf3 -s
 
-On client, we can specify each subflow by interface name:
+
+Client side
+-----------
+
+On client, we can specify each subflow with option -m or --subflows
+
+by interface names:
 
     $ src/iperf3 -c 10.0.2.15 -t 3 -m eth0,eth1
 
-or by client's IP address:
+or by client's IP addresses:
 
     $ src/iperf3 -c 10.0.2.15 -t 3 -m 192.168.56.101,192.168.56.101
 
-or a combination:
+or a combination of interface and IP address:
 
     $ src/iperf3 -c 10.0.2.15 -t 3 -m eth1,192.168.56.101
-or by IPv6:
-    $ src/iperf3 -c 2001:6a8:3081:4f00:a00:27ff:fe1f:2daf    -t 5  -d   -m  2001:6a8:3081:4f00:a00:27ff:fec4:285c,2001:6a8:3081:4f00:a00:27ff:fec4:285c
+
+or a combination of IPv4 and IPv6:
+
+    $ src/iperf3 -c 2001:6a8:3081:4f00:a00:27ff:fe1f:2daf   -m  2001:6a8:3081:4f00:a00:27ff:fec4:285c,192.168.56.101
 
 
-And below is the original iperf3 documentation.
+Output
+------
+
+On client side, the statistics of all subflows are printed each interval.
+
+On server side, after each test finished, the test results are collected
+from client and are stored in a json file in current directory.
+Its name format is:
+
+    ./iperf\_test\_server\_isReceiver\_1479420880.json
+
+which contains the results of each subflow for each interval, and some
+metadata of the test.
+
+
+Backward compatible
+-------------------
+
+There is a parameters exchange phase between client and server before
+actual test, so an enhanced iperf instance can know whether its peer
+is a modified or original one. If it knows that the peer is original
+one, it will fallback to regular iperf behavior.
+
+During this phase, they also exchange all their local IP addresses,
+so that they can create subflows on multiple IP addresses, even when
+only a single remote server address is specified.
+
+It is noticed that this subflow argument does not co-exist with
+parallel TCP streams argument (-P). You can use either (-m) or (-P)
+for a test.
+
+Below is the original iperf3 documentation.
 
 --------------------
 
