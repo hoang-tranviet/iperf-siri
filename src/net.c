@@ -26,6 +26,9 @@
  */
 #include "iperf_config.h"
 
+/* use Linux UAPI */
+#include <linux/tcp.h>
+
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
@@ -33,7 +36,6 @@
 #include <sys/types.h>
 #include <sys/errno.h>
 #include <netinet/in.h>
-#include <netinet/tcp.h>
 #include <assert.h>
 #include <netdb.h>
 #include <string.h>
