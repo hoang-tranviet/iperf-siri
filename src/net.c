@@ -196,7 +196,7 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
 /***************************************************************/
 
 int
-netannounce(int domain, int proto, char *local, int port)
+netannounce(int domain, int proto, char *local, int port, char *scheduler)
 {
     struct addrinfo hints, *res;
     char portstr[6];
@@ -272,6 +272,9 @@ netannounce(int domain, int proto, char *local, int port)
     freeaddrinfo(res);
     
     if (proto == SOCK_STREAM) {
+        if (scheduler != NULL) {
+            set_mptcp_scheduler(s, scheduler);
+        }
         if (listen(s, 5) < 0) {
 	    close(s);
             return -1;
@@ -280,7 +283,6 @@ netannounce(int domain, int proto, char *local, int port)
 
     return s;
 }
-
 
 /*******************************************************************/
 /* reads 'count' bytes from a socket  */

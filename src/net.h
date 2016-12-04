@@ -32,7 +32,7 @@ void set_mptcp_scheduler(int s, char *sched_opt);
 void get_mptcp_scheduler(int s);
 
 int netdial(int domain, int proto, char *local, int local_port, char *server, int port);
-int netannounce(int domain, int proto, char *local, int port);
+int netannounce(int domain, int proto, char *local, int port, char *scheduler);
 int Nread(int fd, char *buf, size_t count, int prot);
 int Nwrite(int fd, const char *buf, size_t count, int prot) /* __attribute__((hot)) */;
 int has_sendfile(void);
