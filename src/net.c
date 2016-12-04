@@ -272,9 +272,12 @@ netannounce(int domain, int proto, char *local, int port, char *scheduler)
     freeaddrinfo(res);
     
     if (proto == SOCK_STREAM) {
+        printf("netannounce: binding socket to local addr\n");
         if (scheduler != NULL) {
             set_mptcp_scheduler(s, scheduler);
         }
+        get_mptcp_scheduler(s);
+
         if (listen(s, 5) < 0) {
 	    close(s);
             return -1;

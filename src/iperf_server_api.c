@@ -141,6 +141,11 @@ iperf_accept(struct iperf_test *test)
     if (test->ctrl_sck == -1) {
         /* Server free, accept new client */
         test->ctrl_sck = s;
+        printf("iperf_accept\n");
+        if (test->mptcp_scheduler != NULL)
+            set_mptcp_scheduler(s, test->mptcp_scheduler);
+        get_mptcp_scheduler(s);
+
         if (Nread(test->ctrl_sck, test->cookie, COOKIE_SIZE, Ptcp) < 0) {
             i_errno = IERECVCOOKIE;
             return -1;
