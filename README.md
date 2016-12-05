@@ -14,6 +14,14 @@ On server, just create iperf server as usual:
 
     $ src/iperf3 -s
 
+Or, we specify the desired mptcp scheduler on server:
+
+    $ src/iperf3 -s --scheduler roundrobin
+
+By definition, it will apply on the transmit from server to client only.
+Notice that the redundant scheduler is currently unstable and can cause
+system crash.
+
 
 Client side
 -----------
