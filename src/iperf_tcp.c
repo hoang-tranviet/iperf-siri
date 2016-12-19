@@ -452,7 +452,6 @@ void create_subflow(struct iperf_test *test, int s, struct iperf_subflow *sf, st
     // open new subflow here
     getsockopt(s, IPPROTO_TCP, MPTCP_OPEN_SUB_TUPLE, sub_tuple, &optlen);
     perror("create subflow");
-    if (test->debug)    printf("\noptlen: %u, sub_tuple: %lu \n", optlen, sizeof(sub_tuple));
 }
 
 void insert_subflow(struct iperf_test *test, int s, uint8_t id)
