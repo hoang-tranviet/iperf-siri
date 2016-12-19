@@ -113,7 +113,7 @@ void get_mptcp_scheduler(int s)
 
 /* make connection to server */
 int
-netdial(int domain, int proto, char *local, int local_port, char *server, int port)
+netdial(int domain, int proto, char *local, int local_port, char *server, int port, char *scheduler)
 {
     struct addrinfo hints, *local_res, *server_res;
     int s;
@@ -181,6 +181,12 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
             fprintf(stderr,"unknown domain\n");
             return -1;
     }
+
+    if (scheduler != NULL) {
+        set_mptcp_scheduler(s, scheduler);
+        get_mptcp_scheduler(s);
+    }
+
     if (connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen) < 0 && errno != EINPROGRESS) {
         perror("Connect");
 	close(s);

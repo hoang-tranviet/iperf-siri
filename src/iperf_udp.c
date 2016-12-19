@@ -322,7 +322,7 @@ iperf_udp_connect(struct iperf_test *test)
 #endif
 
     /* Create and bind our local socket. */
-    if ((s = netdial(test->settings->domain, Pudp, test->bind_address, test->bind_port, test->server_hostname, test->server_port)) < 0) {
+    if ((s = netdial(test->settings->domain, Pudp, test->bind_address, test->bind_port, test->server_hostname, test->server_port, NULL)) < 0) {
         i_errno = IESTREAMCONNECT;
         return -1;
     }
