@@ -77,18 +77,14 @@ int get_tcp_state(int s)
 
 void set_mptcp_scheduler(int s, char *sched_opt)
 {
-    printf("TCP state: %d\n", get_tcp_state(s));
+    //printf("TCP state: %d\n", get_tcp_state(s));
     int r;
     //socklen_t optlen = MPTCP_SCHED_NAME_MAX;
     socklen_t optlen = strlen(sched_opt);
-    printf("setting scheduler: %s len = %d \n", sched_opt, optlen);
     errno = 0;
     r = setsockopt(s, IPPROTO_TCP, MPTCP_SCHEDULER,
                     sched_opt, optlen);
     printf("set scheduler return: %d\n", r);
-    if (r < 0) {
-        perror("set scheduler");
-    }
     errno = 0;
 }
 
@@ -100,11 +96,7 @@ void get_mptcp_scheduler(int s)
     errno = 0;
     r = getsockopt(s, IPPROTO_TCP, MPTCP_SCHEDULER,
                     sched_opt, &optlen);
-    if (r >= 0) {
-        printf("got scheduler: %s len=%d \n", sched_opt, optlen);
-    } else {
-        perror("get scheduler");
-    }
+    printf("got scheduler: %s return = %d \n", sched_opt, r);
     errno = 0;
 }
 /* netdial and netannouce code comes from libtask: http://swtch.com/libtask/
