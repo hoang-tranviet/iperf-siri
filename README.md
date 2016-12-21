@@ -17,7 +17,7 @@ On server, just create iperf server as usual:
 
 We can also specify mptcp scheduler on server:
 
-    $ src/iperf3 -s --scheduler roundrobin
+    $ sudo src/iperf3 -s --scheduler roundrobin
 
 By definition, it will apply on traffic from server to client only.
 Notice that the redundant scheduler is currently unstable and can cause
@@ -44,6 +44,11 @@ or a combination of interface and IP address:
 or a combination of IPv4 and IPv6:
 
     $ src/iperf3 -c 2001:41d0:a:6759::1  -m  2001:6a8:3081:4f00:a00:27ff:fec4:285c,192.168.56.101
+
+
+We can also specify mptcp scheduler on server:
+
+    $ sudo src/iperf3 -c 37.187.114.89  -m eth0,eth1  --scheduler roundrobin
 
 
 Output
