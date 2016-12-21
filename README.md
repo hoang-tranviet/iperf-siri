@@ -148,6 +148,10 @@ None.
     ./configure; make; make install
 
 (Note: If configure fails, try running `./bootstrap.sh` first)
+If the error "libiperf.so not found" happens when run ./iperf3,
+update LD_LIBRARY_PATH with:
+
+    sudo ldconfig /usr/local/lib
 
 Invoking iperf3
 ---------------
