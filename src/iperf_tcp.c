@@ -450,8 +450,8 @@ void create_subflow(struct iperf_test *test, int s, struct iperf_subflow *sf, st
     }
 
     // open new subflow here
-    getsockopt(s, IPPROTO_TCP, MPTCP_OPEN_SUB_TUPLE, sub_tuple, &optlen);
-    perror("create subflow");
+    int r = getsockopt(s, IPPROTO_TCP, MPTCP_OPEN_SUB_TUPLE, sub_tuple, &optlen);
+    if (r < 0)	perror("create subflow");
 }
 
 void insert_subflow(struct iperf_test *test, int s, uint8_t id)
@@ -484,8 +484,9 @@ void get_subflow_tuple(struct iperf_test *test, int s, uint8_t  id)
 
     sub_tuple->id = id;
 
-    getsockopt(s, IPPROTO_TCP, MPTCP_GET_SUB_TUPLE, sub_tuple, &optlen);
-    perror("get subflows");
+    printf("\tSubflow %d:", id);
+    int r = getsockopt(s, IPPROTO_TCP, MPTCP_GET_SUB_TUPLE, sub_tuple, &optlen);
+    if (r < 0)	perror("\tget subflows");
     sin = (struct sockaddr*) &sub_tuple->addrs[0];
 
     char str[INET6_ADDRSTRLEN];
@@ -493,19 +494,19 @@ void get_subflow_tuple(struct iperf_test *test, int s, uint8_t  id)
         struct sockaddr_in *sin4;
         sin4 = (struct sockaddr_in*) &sub_tuple->addrs[0];
         inet_ntop(sin4->sin_family, &(sin4->sin_addr), str, INET_ADDRSTRLEN);
-        printf("\t ip src: %s src port: %hu\n", str, ntohs(sin4->sin_port));
+        printf("\t\t ip src: %s src port: %hu\n", str, ntohs(sin4->sin_port));
         sin4++;
         inet_ntop(sin4->sin_family, &(sin4->sin_addr), str, INET_ADDRSTRLEN);
-        printf("\t ip dst: %s dst port: %hu\n", str, ntohs(sin4->sin_port));
+        printf("\t\t ip dst: %s dst port: %hu\n", str, ntohs(sin4->sin_port));
     }
     if(sin->sa_family == AF_INET6) {
         struct sockaddr_in6 *sin6;
         sin6 = (struct sockaddr_in6*) &sub_tuple->addrs[0];
         inet_ntop(sin6->sin6_family, &(sin6->sin6_addr), str, INET6_ADDRSTRLEN);
-        printf("\t ip src: %s src port: %hu\n", str, ntohs(sin6->sin6_port));
+        printf("\t\t ip src: %s src port: %hu\n", str, ntohs(sin6->sin6_port));
         sin6++;
         inet_ntop(sin6->sin6_family, &(sin6->sin6_addr), str, INET6_ADDRSTRLEN);
-        printf("\t ip dst: %s dst port: %hu\n", str, ntohs(sin6->sin6_port));
+        printf("\t\t ip dst: %s dst port: %hu\n", str, ntohs(sin6->sin6_port));
     }
 }
 
