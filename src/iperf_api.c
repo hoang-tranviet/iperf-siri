@@ -739,6 +739,7 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
         {"parallel", required_argument, NULL, 'P'},
         {"subflows", required_argument, NULL, 'm'},
         {"scheduler", required_argument, NULL, OPT_SCHEDULER},
+        {"test-id", required_argument, NULL, OPT_TEST_ID},
         {"reverse", no_argument, NULL, 'R'},
         {"window", required_argument, NULL, 'w'},
         {"bind", required_argument, NULL, 'B'},
@@ -914,6 +915,9 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
                 break;
             case OPT_SCHEDULER:
                 test->mptcp_scheduler = strdup(optarg);
+                break;
+            case OPT_TEST_ID:
+                test->test_id = strdup(optarg);
                 break;
             case 'R':
 		iperf_set_test_reverse(test, 1);

@@ -288,6 +288,7 @@ struct iperf_test
     int       mptcp_enabled;
     int       remote_iperf_supports_mptcp;
     char     *mptcp_scheduler;
+    char     *test_id;
 
     char     *requested_subflows;
     struct timeval start_time;
