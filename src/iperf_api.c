@@ -650,19 +650,19 @@ iperf_on_connect(struct iperf_test *test)
 
     now_secs = time((time_t*) 0);
     (void) strftime(now_str, sizeof(now_str), rfc1123_fmt, gmtime(&now_secs));
-    if (test->json_output)
+    // if (test->json_output)
 	cJSON_AddItemToObject(test->json_start, "timestamp", iperf_json_printf("time: %s  timesecs: %d", now_str, (int64_t) now_secs));
-    else if (test->verbose)
+    // else if (test->verbose)
 	iprintf(test, report_time, now_str);
 
     if (test->role == 'c') {
-	if (test->json_output)
+	// if (test->json_output)
 	    cJSON_AddItemToObject(test->json_start, "connecting_to", iperf_json_printf("host: %s  port: %d", test->server_hostname, (int64_t) test->server_port));
-	else {
+	// else {
 	    iprintf(test, report_connecting, test->server_hostname, test->server_port);
 	    if (test->reverse)
 		iprintf(test, report_reverse, test->server_hostname);
-	}
+	// }
     } else {
         len = sizeof(sa);
         getpeername(test->ctrl_sck, (struct sockaddr *) &sa, &len);
@@ -676,9 +676,9 @@ iperf_on_connect(struct iperf_test *test)
 	    port = ntohs(sa_in6P->sin6_port);
         }
 	mapped_v4_to_regular_v4(ipr);
-	if (test->json_output)
+	// if (test->json_output)
 	    cJSON_AddItemToObject(test->json_start, "accepted_connection", iperf_json_printf("host: %s  port: %d", ipr, (int64_t) port));
-	else
+	// else
 	    iprintf(test, report_accepted, ipr, port);
     }
     if (test->json_output) {

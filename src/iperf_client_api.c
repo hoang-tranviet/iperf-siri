@@ -352,14 +352,15 @@ iperf_run_client(struct iperf_test * test)
 	if (iperf_setaffinity(test, test->affinity) != 0)
 	    return -1;
 
-    if (test->json_output)
+    // if (test->json_output)
 	if (iperf_json_start(test) < 0)
 	    return -1;
 
-    if (test->json_output) {
+    // if (test->json_output) {
 	cJSON_AddItemToObject(test->json_start, "version", cJSON_CreateString(version));
 	cJSON_AddItemToObject(test->json_start, "system_info", cJSON_CreateString(get_system_info()));
-    } else if (test->verbose) {
+    // } else
+    if (test->verbose) {
 	iprintf(test, "%s\n", version);
 	iprintf(test, "%s", "");
 	iprintf(test, "%s\n", get_system_info());
