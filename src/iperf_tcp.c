@@ -561,8 +561,11 @@ int get_local_ips_for_subflows(struct iperf_test *test, int family)
 {
     char *token;
     struct iperf_subflow *sf;
+    char *requested_subflows = malloc( sizeof(char)*strlen(test->requested_subflows) + 1);
+    /* strsep will modify the input string, so we need to provide the copy */
+    strcpy(requested_subflows, test->requested_subflows);
 
-    while ((token = strsep(&test->requested_subflows, ",")))
+    while ((token = strsep(&requested_subflows, ",")))
     {
         if (test->debug)
             printf("%s \n",token);
