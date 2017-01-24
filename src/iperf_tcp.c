@@ -484,7 +484,7 @@ void get_subflow_tuple(struct iperf_test *test, int s, uint8_t  id)
 
     sub_tuple->id = id;
 
-    printf("\tSubflow %d:", id);
+    printf("\tSubflow %d:\n", id);
     int r = getsockopt(s, IPPROTO_TCP, MPTCP_GET_SUB_TUPLE, sub_tuple, &optlen);
     if (r < 0)	perror("\tget subflows");
     sin = (struct sockaddr*) &sub_tuple->addrs[0];

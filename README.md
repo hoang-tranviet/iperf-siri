@@ -46,7 +46,7 @@ or a combination of IPv4 and IPv6:
     $ src/iperf3 -c 2001:41d0:a:6759::1  -m  2001:6a8:3081:4f00:a00:27ff:fec4:285c,192.168.56.101
 
 
-We can also specify mptcp scheduler on server:
+We can also specify mptcp scheduler on client:
 
     $ sudo src/iperf3 -c 37.187.114.89  -m eth0,eth1  --scheduler roundrobin
 
