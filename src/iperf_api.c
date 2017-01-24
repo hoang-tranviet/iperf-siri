@@ -1731,34 +1731,10 @@ send_results(struct iperf_test *test)
                 }
             }
         }
-        /* remote iperf understands MPTCP, send subflow results instead */
+        /* remote iperf understands MPTCP, send customized subflow results instead */
         else {
-            cJSON *j_subflows;
-            struct iperf_subflow *sp;
-            cJSON *j_subflow;
-
-            j_subflows = cJSON_CreateArray();
-            if (j_subflows == NULL) {
-                i_errno = IEPACKAGERESULTS;
-                r = -1;
-            } else {
                 if ((test->role == 'c') && (test->json_top != NULL)) {
                     cJSON_AddItemReferenceToObject(j, "client_output", test->json_top);
-                }
-                cJSON_AddItemToObject(j, "subflows", j_subflows);
-                SLIST_FOREACH(sp, &test->subflows, subflows) {
-                    j_subflow = cJSON_CreateObject();
-                    if (j_subflow == NULL) {
-                        i_errno = IEPACKAGERESULTS;
-                           r = -1;
-                    } else {
-                        cJSON_AddItemToArray(j_subflows, j_subflow);
-                        bytes_transferred = test->sender ? (sp->result->bytes_sent - sp->result->bytes_sent_omit) : sp->result->bytes_received;
-                        retransmits = (test->sender && test->sender_has_retransmits) ? sp->result->stream_retrans : -1;
-                        cJSON_AddNumberToObject(j_subflow, "id", sp->id);
-                        cJSON_AddNumberToObject(j_subflow, "bytes", bytes_transferred);
-                        cJSON_AddNumberToObject(j_subflow, "retransmits", retransmits);
-                    }
                 }
                 if (r == 0 && test->debug) {
                     printf("send_results\n%s\n", cJSON_Print(j));
@@ -1768,7 +1744,6 @@ send_results(struct iperf_test *test)
                     i_errno = IESENDRESULTS;
                     r = -1;
                 }
-            }
         }
 	cJSON_Delete(j);
     }
@@ -1801,7 +1776,7 @@ get_results(struct iperf_test *test)
     if (j == NULL) {
 	i_errno = IERECVRESULTS;
         r = -1;
-		printf("get_results: cannot read json from control socket\n");
+        printf("get_results: cannot read json from control socket\n");
     } else {
 	j_cpu_util_total = cJSON_GetObjectItem(j, "cpu_util_total");
 	j_cpu_util_user = cJSON_GetObjectItem(j, "cpu_util_user");
@@ -1823,62 +1798,19 @@ get_results(struct iperf_test *test)
 		test->sender_has_retransmits = result_has_retransmits;
 
             if (test->remote_iperf_supports_mptcp) {
-            /* get  subflows information */
-                cJSON *j_subflows;
-                cJSON *j_subflow;
-                struct iperf_subflow *sf = NULL;
+                if (test->role == 's') {
+                    /* If we're the server, also get client mptcp intervals info */
 
-                j_subflows = cJSON_GetObjectItem(j, "subflows");
-                if (j_subflows == NULL) {
-                //i_errno = IERECVRESULTS;
-                r = 1;
-                } else {
-                    n = cJSON_GetArraySize(j_subflows);
-                    for (i=0; i<n; ++i) {
-                        j_subflow = cJSON_GetArrayItem(j_subflows, i);
-                        if (j_subflow == NULL) {
-                            i_errno = IERECVRESULTS;
-                            r = -1;
-                        } else {
-                            j_id = cJSON_GetObjectItem(j_subflow, "id");
-                            j_bytes = cJSON_GetObjectItem(j_subflow, "bytes");
-                            j_retransmits = cJSON_GetObjectItem(j_subflow, "retransmits");
-                            if (j_id == NULL || j_bytes == NULL || j_retransmits == NULL) {
-                                i_errno = IERECVRESULTS;
-                                r = -1;
-                            } else {
-                                sid = j_id->valueint;
-                                bytes_transferred = j_bytes->valueint;
-                                retransmits = j_retransmits->valueint;
-                                SLIST_FOREACH(sf, &test->remote_subflows, subflows)
-                                    if (sf->id == sid) break;
-                                if (sf == NULL) {
-                                    /* Create subflow struct and add to the list */
-                                    sf = malloc(sizeof(struct iperf_subflow));
-                                    sf->id = sid;
-                                    sf->result = malloc(sizeof(struct iperf_stream_result));
-                                    memset(sf->result, 0, sizeof(struct iperf_stream_result));
-                                    SLIST_INSERT_HEAD(&test->remote_subflows, sf, subflows);
-                                }
-                                if (test->sender) {
-                                    sf->result->bytes_received = bytes_transferred;
-                                } else {
-                                    sf->result->bytes_sent = bytes_transferred;
-                                    sf->result->stream_retrans = retransmits;
-                                }
-                            }
-                        }
-                    }
-                    /* If we're the server, also get the detailed intervals info */
-                    if (test->role == 's') {
-                        cJSON *j_client_output;
-                        j_client_output = cJSON_DetachItemFromObject(j, "client_output");
+                    cJSON *j_client_output;
+                    j_client_output = cJSON_DetachItemFromObject(j, "client_output");
+
+                    if (j_client_output == NULL)
+                        r = -1;
+                    else {
                         cJSON_AddItemReferenceToObject(test->json_top, "client_output", j_client_output);
-                        if (j_client_output != NULL) {
-                            test->json_client_output = j_client_output;
-                            save_test_results_to_file(test);
-                            cJSON_Delete(j_client_output);
-                        }
+                        test->json_client_output = j_client_output;
+                        save_test_results_to_file(test);
+                        cJSON_Delete(j_client_output);
                     }
                 }
             } else {
