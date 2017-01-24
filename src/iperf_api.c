@@ -1802,15 +1802,13 @@ get_results(struct iperf_test *test)
                     /* If we're the server, also get client mptcp intervals info */
 
                     cJSON *j_client_output;
-                    j_client_output = cJSON_DetachItemFromObject(j, "client_output");
+                    j_client_output = cJSON_GetObjectItem(j, "client_output");
 
                     if (j_client_output == NULL)
                         r = -1;
                     else {
-                        cJSON_AddItemReferenceToObject(test->json_top, "client_output", j_client_output);
                         test->json_client_output = j_client_output;
                         save_test_results_to_file(test);
-                        cJSON_Delete(j_client_output);
                     }
                 }
             } else {
@@ -3650,10 +3648,29 @@ iperf_json_finish(struct iperf_test *test)
     return 0;
 }
 
+char *
+get_client_test_id( cJSON * j)
+{
+    cJSON *j_start   = cJSON_CreateObject();
+    cJSON *j_test_id = cJSON_CreateObject();
+    if (j != NULL)
+        j_start = cJSON_GetObjectItem(j, "start");
+    if (j_start != NULL)
+        j_test_id = cJSON_GetObjectItem(j_start,"test_id");
+    if (j_test_id != NULL)
+        return j_test_id->valuestring;
+    else
+        return "0";
+}
 
 static int
 save_test_results_to_file(struct iperf_test *test) {
-/* Write test result (json) to auto-named file instead */
+/* Write test result of both client and server to json file */
+        cJSON *j_both;
+        j_both = cJSON_CreateObject();
+        cJSON_AddItemReferenceToObject(j_both, "server", test->json_top);
+        cJSON_AddItemReferenceToObject(j_both, "client", test->json_client_output);
+
         char* json_filename = malloc(80*sizeof(char));
         if (!json_filename)
             return -1;
@@ -3661,12 +3678,12 @@ save_test_results_to_file(struct iperf_test *test) {
                             (unsigned long) test->start_time.tv_sec,
                             test->role == 'c' ? "client" : "server",
                             test->sender ? "isSender" : "isReceiver",
-                            test->test_id);
+                            get_client_test_id(test->json_client_output));
         printf("writing results to json file: ./%s \n\n", json_filename);
         FILE* json_file = fopen(json_filename,"w");
         if (!json_file)
             return -1;
-        char *output_string = cJSON_Print(test->json_top);
+        char *output_string = cJSON_Print(j_both);
         fprintf(json_file, "%s\n", output_string);
         fclose(json_file);
         free(json_filename);
