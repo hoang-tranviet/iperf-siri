@@ -89,7 +89,7 @@ static int get_results(struct iperf_test *test);
 static int diskfile_send(struct iperf_stream *sp);
 static int diskfile_recv(struct iperf_stream *sp);
 static int JSON_write(int fd, cJSON *json);
-static int save_client_results_to_file(struct iperf_test *test);
+static int save_test_results_to_file(struct iperf_test *test);
 static void print_interval_results(struct iperf_test *test, struct iperf_stream *sp, cJSON *json_interval_streams);
 static void print_sf_interval_results(struct iperf_test *test, struct iperf_subflow *sf, cJSON *json_interval_streams);
 static cJSON *JSON_read(int fd);
@@ -1875,7 +1875,7 @@ get_results(struct iperf_test *test)
                         j_client_output = cJSON_DetachItemFromObject(j, "client_output_json");
                         if (j_client_output != NULL) {
                             test->json_client_output = j_client_output;
-                            save_client_results_to_file(test);
+                            save_test_results_to_file(test);
                         }
                     }
                 }
@@ -3718,15 +3718,16 @@ iperf_json_finish(struct iperf_test *test)
 
 
 static int
-save_client_results_to_file(struct iperf_test *test) {
+save_test_results_to_file(struct iperf_test *test) {
 /* Write test result (json) to auto-named file instead */
         char* json_filename = malloc(80*sizeof(char));
         if (!json_filename)
             return -1;
-        sprintf(json_filename, "iperf_test_%s_%s_%lu.json",
+        sprintf(json_filename, "iperf_%lu_%s_%s_%s.json",
+                            (unsigned long) test->start_time.tv_sec,
                             test->role == 'c' ? "client" : "server",
                             test->sender ? "isSender" : "isReceiver",
-                            (unsigned long) test->start_time.tv_sec);
+                            test->test_id);
         printf("writing results to json file: ./%s \n\n", json_filename);
         FILE* json_file = fopen(json_filename,"w");
         if (!json_file)
