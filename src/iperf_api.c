@@ -1743,7 +1743,7 @@ send_results(struct iperf_test *test)
                 r = -1;
             } else {
                 if ((test->role == 'c') && (test->json_top != NULL)) {
-                    cJSON_AddItemReferenceToObject(j, "client_output_json", test->json_top);
+                    cJSON_AddItemReferenceToObject(j, "client_output", test->json_top);
                 }
                 cJSON_AddItemToObject(j, "subflows", j_subflows);
                 SLIST_FOREACH(sp, &test->subflows, subflows) {
@@ -1872,10 +1872,12 @@ get_results(struct iperf_test *test)
                     /* If we're the server, also get the detailed intervals info */
                     if (test->role == 's') {
                         cJSON *j_client_output;
-                        j_client_output = cJSON_DetachItemFromObject(j, "client_output_json");
+                        j_client_output = cJSON_DetachItemFromObject(j, "client_output");
+                        cJSON_AddItemReferenceToObject(test->json_top, "client_output", j_client_output);
                         if (j_client_output != NULL) {
                             test->json_client_output = j_client_output;
                             save_test_results_to_file(test);
+                            cJSON_Delete(j_client_output);
                         }
                     }
                 }
@@ -3732,7 +3734,7 @@ save_test_results_to_file(struct iperf_test *test) {
         FILE* json_file = fopen(json_filename,"w");
         if (!json_file)
             return -1;
-        char *output_string = cJSON_Print(test->json_client_output);
+        char *output_string = cJSON_Print(test->json_top);
         fprintf(json_file, "%s\n", output_string);
         fclose(json_file);
         free(json_filename);
