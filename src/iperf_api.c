@@ -2340,6 +2340,10 @@ iperf_reset_test(struct iperf_test *test)
     memset(test->cookie, 0, COOKIE_SIZE);
     test->multisend = 10;	/* arbitrary */
     test->udp_counters_64bit = 0;
+    if (test->title) {
+	free(test->title);
+	test->title = NULL;
+    }
 
     /* Free output line buffers, if any (on the server only) */
     struct iperf_textline *t;
