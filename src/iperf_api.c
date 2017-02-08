@@ -3663,9 +3663,21 @@ get_client_test_id( cJSON * j)
         return "0";
 }
 
-static int
-save_test_results_to_file(struct iperf_test *test) {
 /* Write test result of both client and server to json file */
+static int
+save_test_results_to_file(struct iperf_test *test)
+{
+        char path[256];
+        /* concatenate path string from "results/" and {test-id} */
+        snprintf(path, sizeof path, "results/%s", get_client_test_id(test->json_client_output));
+
+        if (mkdir(path, 0700) == 0)
+            printf("created new folder:%s\n", path);
+        else if(errno != EEXIST){
+            perror("create path error");
+            return -1;
+        }
+        chdir(path);
         cJSON *j_both;
         j_both = cJSON_CreateObject();
         cJSON_AddItemReferenceToObject(j_both, "server", test->json_top);
@@ -3674,18 +3686,18 @@ save_test_results_to_file(struct iperf_test *test) {
         char* json_filename = malloc(80*sizeof(char));
         if (!json_filename)
             return -1;
-        sprintf(json_filename, "iperf_%lu_%s_%s_%s.json",
+        sprintf(json_filename, "iperf_%lu_%s_%s.json",
                             (unsigned long) test->start_time.tv_sec,
                             test->role == 'c' ? "client" : "server",
-                            test->sender ? "isSender" : "isReceiver",
-                            get_client_test_id(test->json_client_output));
-        printf("writing results to json file: ./%s \n\n", json_filename);
+                            test->sender ? "isSender" : "isReceiver");
+        printf("writing results to json file: %s/%s \n\n", path, json_filename);
         FILE* json_file = fopen(json_filename,"w");
         if (!json_file)
             return -1;
         char *output_string = cJSON_Print(j_both);
         fprintf(json_file, "%s\n", output_string);
         fclose(json_file);
+        chdir("../../");
         free(json_filename);
         json_filename = NULL;
         return 0;
