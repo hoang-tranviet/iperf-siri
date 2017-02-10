@@ -32,6 +32,8 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 #include <sys/select.h>
 #include <sys/uio.h>
 #include <arpa/inet.h>
@@ -281,7 +283,138 @@ iperf_handle_message_client(struct iperf_test *test)
     return 0;
 }
 
+#include <ifaddrs.h>
+#include <stdbool.h>
 
+bool isHostInterface(char *iface){
+    struct ifaddrs  *ifaddr, *ifa;
+
+    if (getifaddrs(&ifaddr) == -1) {
+        perror("getifaddrs");
+        exit(EXIT_FAILURE);
+    }
+    /* Walk through linked list, maintaining head pointer so we
+       can free list later */
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+        if(strcmp(ifa->ifa_name, iface)==0)
+            return true;
+    freeifaddrs(ifaddr);
+    return false;
+}
+
+/* get IP of the requested interface and family
+ * set family = 0 to get IP of any family if you don't care about family */
+struct sockaddr_storage * getIPfromInterface(struct iperf_test *test, int family, char * iface)
+{
+    if ((family != AF_INET) && (family != AF_INET6) && (family != 0)) {
+        if (test->debug)
+            printf ("invalid family value\n");
+        return NULL;
+    }
+
+    struct ifaddrs  *ifaddr, *ifa;
+    struct sockaddr_storage *addr;
+    addr = malloc(sizeof(struct sockaddr_storage));
+
+    if (getifaddrs(&ifaddr) == -1) {
+        perror("getifaddrs");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Walk through linked list, maintaining head pointer so we
+       can free list later */
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+    {
+        if (ifa->ifa_addr == NULL)
+            continue;
+        memcpy(addr, ifa->ifa_addr, sizeof(struct sockaddr_storage));
+        /*
+        if (test->debug) {
+            char *host = ip_to_str(ifa->ifa_addr);
+            printf("\tInterface : <%s>\n", ifa->ifa_name);
+            printf("\t  Address : <%s>\n", host );
+        } */
+        if(strcmp(ifa->ifa_name, iface) == 0) {
+            if (((addr->ss_family == AF_INET)  && (family == AF_INET))
+             || ((addr->ss_family == AF_INET6) && (family == AF_INET6))) {
+                freeifaddrs(ifaddr);
+                return addr;
+            }
+            if ((family == 0) &&
+                ((addr->ss_family == AF_INET) || (addr->ss_family == AF_INET6))) {
+                freeifaddrs(ifaddr);
+                return addr;
+            }
+        }
+    }
+    fprintf(stderr, "cannot find IP for this interface\n");
+    freeifaddrs(ifaddr);
+    free(addr);
+    return NULL;
+}
+int get_server_family(struct iperf_test *test) {
+    struct addrinfo hints, *server_res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = test->settings->domain;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(test->server_hostname, NULL, &hints, &server_res) != 0) {
+        return AF_UNSPEC;
+    }
+    return server_res->ai_family;
+}
+
+/* parse subflow list and get their ips which match server IP family */
+int get_local_ips_for_subflows(struct iperf_test *test, int family)
+{
+    char *token;
+    struct iperf_subflow *sf;
+    char *requested_subflows = malloc( sizeof(char)*strlen(test->requested_subflows) + 1);
+    /* strsep will modify the input string, so we need to provide the copy */
+    strcpy(requested_subflows, test->requested_subflows);
+
+    while ((token = strsep(&requested_subflows, ",")))
+    {
+        if (test->debug)
+            printf("%s \n",token);
+        // this is initial subflow.
+        if (test->num_subflows == 0) {
+            if (isHostInterface(token)) {
+                // look up for IP address
+                test->bind_address = malloc(INET6_ADDRSTRLEN);
+                struct sockaddr_storage *sa = getIPfromInterface(test, family, token);
+                if (sa == NULL)
+                    return -1;
+                test->bind_address  = ip_to_str(sa);
+            } else
+                // this is an address, just store it
+                test->bind_address = strdup(token);
+        }
+        // next subflows
+        else {
+            sf = (struct iperf_subflow *) malloc(sizeof(struct iperf_subflow));
+            sf->local_addr = malloc(sizeof(struct sockaddr_storage));
+            if (isHostInterface(token)) {
+                // this is an interface, get its IP address first
+                sf->ifacename  = token;
+                sf->local_addr = getIPfromInterface(test, family, token);
+                if (test->debug)    printf("sf address: %s\n", ip_to_str(sf->local_addr));
+            }
+            // if this is an address, just store it
+            else {
+                sf->local_addr = str_to_ip(token);
+            }
+            // insert element 'sf' into head (test->subflows) of list
+            SLIST_INSERT_HEAD(&test->subflows, sf, subflows);
+        }
+        test->num_subflows++;
+    }
+
+    if (test->num_subflows > MAX_SUBFLOWS) {
+        i_errno = IENUMSUBFLOWS;
+        return -1;
+    }
+    return 0;
+}
 
 /* iperf_connect -- client to server connection function */
 int
@@ -298,6 +431,12 @@ iperf_connect(struct iperf_test *test)
         if (test->debug)
             printf("connect to server:\t domain: %d, bind_address: %s, server: %s, server port: %d \n",
                 test->settings->domain, test->bind_address, test->server_hostname, test->server_port);
+
+        if (test->mptcp_enabled) {
+            /* parse requested subflows, set family based on server_res (-c) */
+            if (get_local_ips_for_subflows(test, get_server_family(test)) < 0)
+                return -1;
+        }
         // Create the control channel using an ephemeral port
         test->ctrl_sck = netdial(test->settings->domain, Ptcp, test->bind_address, 0, test->server_hostname, test->server_port, test->mptcp_scheduler);
     }
