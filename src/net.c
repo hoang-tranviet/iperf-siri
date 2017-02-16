@@ -181,6 +181,8 @@ netdial(int domain, int proto, char *local, int local_port, char *server, int po
 
     if (connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen) < 0 && errno != EINPROGRESS) {
         perror("Connect");
+        if (errno == ECONNREFUSED)
+            printf(" Server accepts MPTCP connection only\n Maybe MPTCP was not enabled or there is middlebox interference on the way?\n");
 	close(s);
 	freeaddrinfo(server_res);
         return -1;
