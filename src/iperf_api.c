@@ -2715,7 +2715,7 @@ iperf_print_sf_intermediate(struct iperf_test *test)
     }
 
     /* next build string with sum of all subflows */
-    if (test->num_subflows >= 1) {
+    if (test->num_subflows > 1) {
         sf = SLIST_FIRST(&test->subflows); /* reset back to 1st subflow */
 
         irp = TAILQ_LAST(&sf->result->interval_results, irlisthead);    /* use 1st subflow for timing info */
@@ -3061,7 +3061,7 @@ iperf_print_sf_results(struct iperf_test *test)
     }
     }
 
-    if (test->num_subflows >= 1) {
+    if (test->num_subflows > 1) {
         unit_snprintf(ubuf, UNIT_LEN, (double) total_sent, 'A');
 	/* If no tests were run, arbitrariliy set bandwidth to 0. */
 	if (end_time > 0.0)
