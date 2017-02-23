@@ -349,7 +349,7 @@ void create_subflow(struct iperf_test *test, int s, struct iperf_subflow *sf, st
         // destination
         addr++;
         addr->sin_family = family;
-        addr->sin_port = htons(PORT);
+        addr->sin_port = htons(test->server_port);
         addr->sin_addr = ((struct sockaddr_in*) server_addr)->sin_addr;
     }
     else if (family == AF_INET6) {
@@ -371,7 +371,7 @@ void create_subflow(struct iperf_test *test, int s, struct iperf_subflow *sf, st
         // destination
         addr++;
         addr->sin6_family = family;
-        addr->sin6_port = htons(PORT);
+        addr->sin6_port = htons(test->server_port);
         addr->sin6_addr = ((struct sockaddr_in6*) server_addr)->sin6_addr;
     }
     else {
