@@ -458,6 +458,13 @@ iperf_set_no_fq_socket_pacing(struct iperf_test *ipt, int no_pacing)
     ipt->no_fq_socket_pacing = no_pacing;
 }
 
+void
+iperf_set_num_requested_subflows(struct iperf_test *ipt, int num_subflows)
+{
+    ipt->num_subflows = num_subflows;
+}
+
+
 /********************** Get/set test protocol structure ***********************/
 
 struct protocol *
@@ -1629,6 +1636,8 @@ get_parameters(struct iperf_test *test)
 	    iperf_set_test_udp_counters_64bit(test, 1);
 	if ((j_p = cJSON_GetObjectItem(j, "no_fq_socket_pacing")) != NULL)
 	    iperf_set_no_fq_socket_pacing(test, 1);
+	if ((j_p = cJSON_GetObjectItem(j, "num_requested_subflows")) != NULL)
+	    iperf_set_num_requested_subflows(test, j_p->valueint);
 	
 	if (test->sender && test->protocol->id == Ptcp && has_tcpinfo_retransmits())
 	    test->sender_has_retransmits = 1;
