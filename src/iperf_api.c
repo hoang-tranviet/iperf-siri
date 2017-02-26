@@ -2189,12 +2189,20 @@ iperf_free_test(struct iperf_test *test)
 {
     struct protocol *prot;
     struct iperf_stream *sp;
+    struct iperf_subflow *sf;
 
     /* Free streams */
     while (!SLIST_EMPTY(&test->streams)) {
         sp = SLIST_FIRST(&test->streams);
         SLIST_REMOVE_HEAD(&test->streams, streams);
         iperf_free_stream(sp);
+    }
+
+    /* Free subflows */
+    while (!SLIST_EMPTY(&test->subflows)) {
+        sf = SLIST_FIRST(&test->subflows);
+        SLIST_REMOVE_HEAD(&test->subflows, subflows);
+        iperf_free_subflow(sf);
     }
 
     if (test->server_hostname)
@@ -2287,6 +2295,16 @@ iperf_reset_test(struct iperf_test *test)
         SLIST_REMOVE_HEAD(&test->streams, streams);
         iperf_free_stream(sp);
     }
+
+    struct iperf_subflow *sf;
+
+    /* Free subflows */
+    while (!SLIST_EMPTY(&test->subflows)) {
+        sf = SLIST_FIRST(&test->subflows);
+        SLIST_REMOVE_HEAD(&test->subflows, subflows);
+        iperf_free_subflow(sf);
+    }
+
     if (test->omit_timer != NULL) {
 	tmr_cancel(test->omit_timer);
 	test->omit_timer = NULL;
@@ -2332,6 +2350,7 @@ iperf_reset_test(struct iperf_test *test)
     FD_ZERO(&test->write_set);
     
     test->num_streams = 1;
+    test->num_subflows = 0;
     test->settings->socket_bufsize = 0;
     test->settings->blksize = DEFAULT_TCP_BLKSIZE;
     test->settings->rate = 0;
@@ -3329,6 +3348,21 @@ iperf_free_stream(struct iperf_stream *sp)
     if (sp->send_timer != NULL)
 	tmr_cancel(sp->send_timer);
     free(sp);
+}
+
+/**************************************************************************/
+void
+iperf_free_subflow(struct iperf_subflow *sf)
+{
+    struct iperf_interval_results *irp, *nirp;
+
+    for (irp = TAILQ_FIRST(&sf->result->interval_results); irp != NULL; irp = nirp) {
+        TAILQ_REMOVE(&sf->result->interval_results, irp, irlistentries);
+        nirp = TAILQ_NEXT(irp, irlistentries);
+        free(irp);
+    }
+    free(sf->result);
+    free(sf);
 }
 
 /**************************************************************************/

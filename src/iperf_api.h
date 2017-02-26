@@ -211,6 +211,12 @@ int       iperf_init_stream(struct iperf_stream *, struct iperf_test *);
  */
 void      iperf_free_stream(struct iperf_stream * sp);
 
+/**
+ * iperf_free_subflow -- free resources associated with test
+ *
+ */
+void      iperf_free_subflow(struct iperf_subflow * sf);
+
 int has_tcpinfo(void);
 int has_tcpinfo_retransmits(void);
 void save_tcpinfo(struct iperf_stream *sp, struct iperf_interval_results *irp);
