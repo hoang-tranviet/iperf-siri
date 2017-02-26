@@ -3746,6 +3746,18 @@ save_test_results_to_file(struct iperf_test *test)
         return 0;
 }
 
+int
+get_num_requested_subflows(char *s) {
+    int count = 1;
+    char *ptr = s;
+    while((ptr = strchr(ptr, ',')) != NULL) {
+        count++;
+        ptr++;
+    }
+    return count;
+}
+
+
 /* CPU affinity stuff - Linux and FreeBSD only. */
 
 int

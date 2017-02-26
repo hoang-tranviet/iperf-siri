@@ -255,6 +255,7 @@ extern jmp_buf env;
 
 /* Client routines. */
 int iperf_run_client(struct iperf_test *);
+int get_num_requested_subflows(char *s);
 int iperf_connect(struct iperf_test *);
 int iperf_create_streams(struct iperf_test *);
 int iperf_handle_message_client(struct iperf_test *);
