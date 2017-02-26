@@ -1456,6 +1456,8 @@ send_parameters(struct iperf_test *test)
             cJSON_AddTrueToObject(j, "sctp");
         /* this iperf understands mptcp :) */
 	cJSON_AddTrueToObject(j, "mptcp");
+        cJSON_AddNumberToObject(j, "num_requested_subflows", test->num_subflows);
+
 	cJSON_AddNumberToObject(j, "omit", test->omit);
 	if (test->server_affinity != -1)
 	    cJSON_AddNumberToObject(j, "server_affinity", test->server_affinity);
