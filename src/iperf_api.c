@@ -1381,6 +1381,8 @@ iperf_exchange_parameters(struct iperf_test *test)
                 return -1;
 
         fprintf(stderr, "exchange param done, start a TCP listener \n");
+        fprintf(stderr, "got test title: %s \n", test->title);
+
         if ((s = test->protocol->listen(test)) < 0) {
 	    if (iperf_set_send_state(test, SERVER_ERROR) != 0)
                 return -1;
