@@ -319,6 +319,7 @@ iperf_tcp_listen(struct iperf_test *test)
     return s;
 }
 
+
 // mptcp create subflow :)
 
 void create_subflow(struct iperf_test *test, int s, struct iperf_subflow *sf, struct sockaddr_storage * server_addr)
@@ -401,6 +402,40 @@ void insert_subflow(struct iperf_test *test, int s, uint8_t id)
     TAILQ_INIT(&sf->result->interval_results);
 
     SLIST_INSERT_HEAD(&test->subflows, sf, subflows);
+}
+
+/* create subflows on client as requested by the slist */
+
+void iperf_create_subflows( struct iperf_test *test, int s, struct addrinfo *server_res)
+{
+    printf("number of requested subflows: %d\n", test->num_subflows);
+    struct iperf_subflow *sf;
+    struct iperf_ip_addrs *server_ip;
+
+    SLIST_FOREACH( sf, &test->subflows, subflows)
+    {
+        int created = 0;
+        int family = ((struct sockaddr*) sf->local_addr)->sa_family;
+        /* remote_ip_addrs */
+        if (!SLIST_EMPTY(&test->remote_ip_addrs))
+        {
+            SLIST_FOREACH(server_ip, &test->remote_ip_addrs, ip_addrs)
+               if (family == server_ip->family) {
+                   create_subflow(test, s, sf, str_to_ip(server_ip->ip));
+                   created = 1;
+                   break;
+               }
+            if (!created)
+                printf("not found any server IP in the same family with local IP\n");
+        }
+        /* if server does not send remote_ip_addrs,
+         * use default server address (server_res) as fallback */
+        else if (family == server_res->ai_family) {
+            create_subflow(test, s, sf, (struct sockaddr_storage*) server_res->ai_addr);
+        }
+        else
+            printf("local IP is not in the same family with server IP\n");
+    }
 }
 
 void get_subflow_tuple(struct iperf_test *test, int s, uint8_t  id)
@@ -670,6 +705,7 @@ iperf_tcp_connect(struct iperf_test *test)
     }
 #endif /* HAVE_SO_MAX_PACING_RATE */
 
+    /* if mptcp enabled, this creates initial subflow */
     if (connect(s, (struct sockaddr *) server_res->ai_addr, server_res->ai_addrlen) < 0 && errno != EINPROGRESS) {
 	saved_errno = errno;
 	close(s);
@@ -679,38 +715,6 @@ iperf_tcp_connect(struct iperf_test *test)
         return -1;
     }
 
-    printf("number of subflows: %d\n", test->num_subflows);
-    struct iperf_subflow *sf;
-    struct iperf_ip_addrs *server_ip;
-
-    /* create subflows as requested by the slist,
-    test->subflows is the head of list */
-
-    SLIST_FOREACH( sf, &test->subflows, subflows) {
-        int created = 0;
-        int family = ((struct sockaddr*) sf->local_addr)->sa_family;
-        if (!SLIST_EMPTY(&test->remote_ip_addrs)) {
-            SLIST_FOREACH(server_ip, &test->remote_ip_addrs, ip_addrs)
-               if (family == server_ip->family) {
-                   create_subflow(test, s, sf, str_to_ip(server_ip->ip));
-                   created = 1;
-                   break;
-               }
-            if (!created)
-                printf("not found any server IP in the same family\n");
-        }
-        else if (family == server_res->ai_family) {
-            create_subflow(test, s, sf, (struct sockaddr_storage*) server_res->ai_addr);
-        }
-        else
-            printf("local IP does not in the same family with server IP\n");
-    }
-
-    remove_sf_list(test);
-    get_subflow_ids(test, 1, s);
-
-    freeaddrinfo(server_res);
-
     /* Send cookie for verification */
     if (Nwrite(s, test->cookie, COOKIE_SIZE, Ptcp) < 0) {
 	saved_errno = errno;
@@ -719,6 +723,23 @@ iperf_tcp_connect(struct iperf_test *test)
         i_errno = IESENDCOOKIE;
         return -1;
     }
+
+    get_subflow_ids(test, 1, s);
+
+    /* Create next subflows */
+    /* Consider moving this to iperf_client_api.c,
+     * at the same place with iperf_create_streams(),
+     * but then we must remember server_res  */
+    iperf_create_subflows(test, s, server_res);
+
+    /*  Rebuild the sf_list with different semantic.
+     *  It was the list of requested subflows,
+     *  Now it will be the current/existed subflows.
+     */
+    remove_sf_list(test);
+    get_subflow_ids(test, 1, s);
+
+    freeaddrinfo(server_res);
 
     return s;
 }
