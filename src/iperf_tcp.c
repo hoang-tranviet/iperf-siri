@@ -319,6 +319,38 @@ iperf_tcp_listen(struct iperf_test *test)
     return s;
 }
 
+/* check if initial subflow has been fully established or not
+ * repeat checks and waits for every 100 ms until it is */
+
+int wait_until_isf_fully_established(struct iperf_test *test, int s)
+{
+    unsigned int optlen = 42;
+    struct mptcp_sub_ids *ids;
+
+    while (1) {
+        ids = malloc(optlen);
+        if (getsockopt(s, IPPROTO_TCP, MPTCP_GET_SUB_IDS, ids, &optlen) < 0) {
+            /* this error is often due to mptcp does not work */
+            perror("get initial subflow id");
+            free(ids);
+            return -1;
+            };
+        /* if initial subflow has been fully established, we are done */
+        if (ids->sub_status[0].fully_established) {
+            if (test->debug)
+                fprintf(stderr, "isf has been fully established, create next subflows\n");
+            free(ids);
+            return 0;
+            }
+        else {
+            free(ids);
+            if (test->debug)
+                fprintf(stderr, "wait 100ms\n");
+            usleep(100*1000);
+           };
+    };
+}
+
 
 // mptcp create subflow :)
 
@@ -724,13 +756,16 @@ iperf_tcp_connect(struct iperf_test *test)
         return -1;
     }
 
-    get_subflow_ids(test, 1, s);
 
     /* Create next subflows */
     /* Consider moving this to iperf_client_api.c,
      * at the same place with iperf_create_streams(),
      * but then we must remember server_res  */
-    iperf_create_subflows(test, s, server_res);
+
+    if (wait_until_isf_fully_established(test, s) >= 0)
+        iperf_create_subflows(test, s, server_res);
+    else
+        test->mptcp_enabled = 0;
 
     /*  Rebuild the sf_list with different semantic.
      *  It was the list of requested subflows,
