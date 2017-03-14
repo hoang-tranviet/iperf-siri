@@ -526,7 +526,6 @@ iperf_run_client(struct iperf_test * test)
 	}
 	if (result > 0) {
 	    if (FD_ISSET(test->ctrl_sck, &read_set)) {
- 	        get_local_IP_list(test);
 		if (iperf_handle_message_client(test) < 0) {
 		    return -1;
 		}
