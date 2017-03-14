@@ -2564,9 +2564,19 @@ iperf_stats_callback(struct iperf_test *test)
 
     int mptcp_enabled = get_subflow_ids(test, 0, sp->socket);
 
-    if (!mptcp_enabled)   return;
+    if (!mptcp_enabled)
+        return;
 
+    if (SLIST_EMPTY(&test->subflows))
+        return;
+
+    /* gather subflow-level stats */
     SLIST_FOREACH(sf, &test->subflows, subflows) {
+
+        /* skip if subflows list was not built */
+        if (sf == NULL)
+            return;
+
         rp = sf->result;
         if (test->debug)   fprintf(stderr, "read subflow: id = %d\n", sf->id);
 
