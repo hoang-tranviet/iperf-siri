@@ -2794,6 +2794,11 @@ iperf_print_sf_intermediate(struct iperf_test *test)
     if (test->num_subflows > 1) {
         sf = SLIST_FIRST(&test->subflows); /* reset back to 1st subflow */
 
+	/* Only do this of course if there was a first subflow */
+        if (!sf) {
+            fprintf(stderr, "first subflow entry not found\n");
+            return;
+        }
         irp = TAILQ_LAST(&sf->result->interval_results, irlisthead);    /* use 1st subflow for timing info */
 
         unit_snprintf(ubuf, UNIT_LEN, (double) bytes, 'A');
