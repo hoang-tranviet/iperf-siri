@@ -533,11 +533,18 @@ int get_subflow_ids(struct iperf_test *test, int get_tuple, int s)
         if (test->debug)    perror("get subflow ids");
         /* this means MPTCP does not work */
         test->mptcp_enabled = 0;
+        free(ids);
         return 0;
     }
+
     int i;
-    if (test->debug)        printf(" Num of subflows: %d \n", ids->sub_count);
-    for(i = 0; i < ids->sub_count; i++){
+    int sub_count = ids->sub_count;
+
+    if (test->debug)
+        printf(" Num of subflows: %d \n", sub_count);
+
+    for(i = 0; i < sub_count; i++)
+    {
         if (test->debug) {
             printf("  Subflow id: %i\t",  ids->sub_status[i].id);
           //printf("  is attached: %i\n", ids->sub_status[i].attached);
@@ -546,12 +553,15 @@ int get_subflow_ids(struct iperf_test *test, int get_tuple, int s)
         }
         if (get_tuple)
             get_subflow_tuple(test, s, ids->sub_status[i].id);
-        if (ids->sub_status[i].fully_established){
+
+        /* try inserting to list only fully established subflows */
+        if (ids->sub_status[i].fully_established) {
             insert_subflow(test, s, ids->sub_status[i].id);
             test->mptcp_enabled = 1;
         }
     }
-    return ids->sub_count;
+    free(ids);
+    return sub_count;
 }
 
 
