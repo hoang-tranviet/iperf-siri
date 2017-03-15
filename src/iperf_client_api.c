@@ -409,6 +409,8 @@ int get_local_ips_for_subflows(struct iperf_test *test, int family)
         test->num_subflows++;
     }
 
+    free(requested_subflows);
+
     if (test->num_subflows > MAX_SUBFLOWS) {
         i_errno = IENUMSUBFLOWS;
         return -1;
