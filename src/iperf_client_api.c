@@ -364,6 +364,8 @@ int get_server_family(struct iperf_test *test) {
 }
 
 /* parse subflow list and get their ips which match server IP family */
+/* also set test->num_subflows as number of requested subflows */
+
 int get_local_ips_for_subflows(struct iperf_test *test, int family)
 {
     char *token;
@@ -410,6 +412,10 @@ int get_local_ips_for_subflows(struct iperf_test *test, int family)
     }
 
     free(requested_subflows);
+
+    /* if there is the subflow argument (-m) is empty, set sf count as 1 */
+    if (test->num_subflows == 0)
+        test->num_subflows = 1;
 
     if (test->num_subflows > MAX_SUBFLOWS) {
         i_errno = IENUMSUBFLOWS;
