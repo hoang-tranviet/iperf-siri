@@ -380,7 +380,7 @@ int get_local_ips_for_subflows(struct iperf_test *test, int family)
         if (test->num_subflows == 0) {
             if (isHostInterface(token)) {
                 // look up for IP address
-                test->bind_address = malloc(INET6_ADDRSTRLEN);
+                // test->bind_address = malloc(INET6_ADDRSTRLEN);
                 struct sockaddr_storage *sa = getIPfromInterface(test, family, token);
                 if (sa == NULL)
                     return -1;
