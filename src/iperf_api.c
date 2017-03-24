@@ -2636,6 +2636,8 @@ iperf_stats_callback(struct iperf_test *test)
             }
             rp->stream_sum_rtt += temp.rtt;
             rp->stream_count_rtt++;
+
+            temp.rttvar = get_rttvar(&temp);
         }
         add_to_interval_list(rp, &temp);
         rp->bytes_sent_this_interval = rp->bytes_received_this_interval = 0;
@@ -3373,9 +3375,9 @@ print_sf_interval_results(struct iperf_test *test, struct iperf_subflow *sf, cJS
 	if (test->sender && test->sender_has_retransmits) {
         /* Interval, TCP with retransmits. */
             cJSON_AddItemToArray(json_interval_streams, iperf_json_printf(
-                "id: %d  start: %f  end: %f  seconds: %f  bytes: %d  bits_per_second: %f  retransmits: %d  snd_cwnd:  %d  rtt:  %d  omitted: %b",
+                "id: %d  start: %f  end: %f  seconds: %f  bytes: %d  bits_per_second: %f  retransmits: %d  snd_cwnd:  %d  rtt:  %d  rttvar: %d  omitted: %b",
                 (int64_t) sf->id, (double) st, (double) et, (double) irp->interval_duration, (int64_t) irp->bytes_transferred,
-                bandwidth * 8, (int64_t) irp->interval_retrans, (int64_t) irp->snd_cwnd, (int64_t) irp->rtt, irp->omitted));
+                bandwidth * 8, (int64_t) irp->interval_retrans, (int64_t) irp->snd_cwnd, (int64_t) irp->rtt, (int64_t) irp->rttvar, irp->omitted));
             unit_snprintf(cbuf, UNIT_LEN, irp->snd_cwnd, 'A');
             iprintf(test, report_bw_retrans_cwnd_format, sf->id, st, et, ubuf, nbuf, irp->interval_retrans, cbuf, irp->omitted?report_omitted:"");
 	} else {
