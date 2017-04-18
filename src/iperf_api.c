@@ -3745,7 +3745,7 @@ iperf_json_finish(struct iperf_test *test)
         return -1;
 
     if (test->json_output)
-        fprintf(test->outfile, "%s\n", test->json_output_string);
+        save_test_results_to_file(test);
 
     iflush(test);
     cJSON_Delete(test->json_top);
@@ -3774,19 +3774,29 @@ save_test_results_to_file(struct iperf_test *test)
 {
         char path[256];
         /* concatenate path string from "results/" and {test-id} */
-        snprintf(path, sizeof path, "results/%s", get_client_test_id(test->json_client_output));
+        if (test->role == 'c')
+            snprintf(path, sizeof path, "results/%s", test->test_id);
+        else
+            snprintf(path, sizeof path, "results/%s", get_client_test_id(test->json_client_output));
 
-        if (mkdir(path, 0700) == 0)
-            printf("created new folder:%s\n", path);
+        if (mkdir("results", 0755) == 0)
+            printf("Folder results/ not found. Created a new one.\n");
+
+        if (mkdir(path, 0755) == 0)
+            printf("created new folder: %s\n", path);
         else if(errno != EEXIST){
             perror("create path error");
             return -1;
         }
         chdir(path);
-        cJSON *j_both;
-        j_both = cJSON_CreateObject();
-        cJSON_AddItemReferenceToObject(j_both, "server", test->json_top);
-        cJSON_AddItemReferenceToObject(j_both, "client", test->json_client_output);
+
+        if (test->role == 's') {
+            cJSON *j_both;
+            j_both = cJSON_CreateObject();
+            cJSON_AddItemReferenceToObject(j_both, "server", test->json_top);
+            cJSON_AddItemReferenceToObject(j_both, "client", test->json_client_output);
+            test->json_output_string = cJSON_Print(j_both);
+        }
 
         char* json_filename = malloc(80*sizeof(char));
         if (!json_filename)
@@ -3799,8 +3809,7 @@ save_test_results_to_file(struct iperf_test *test)
         FILE* json_file = fopen(json_filename,"w");
         if (!json_file)
             return -1;
-        char *output_string = cJSON_Print(j_both);
-        fprintf(json_file, "%s\n", output_string);
+        fprintf(json_file, "%s\n", test->json_output_string);
         fclose(json_file);
         chdir("../../");
         free(json_filename);
