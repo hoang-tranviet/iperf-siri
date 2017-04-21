@@ -55,6 +55,10 @@ Output
 ------
 
 On client side, the statistics of all subflows are printed each interval.
+If json (-J) is specified, the program also writes output to files in
+*results/* folder, in parallel to user-friendly output on stdout. This is
+different from original iperf3, which only outputs either user-friendly
+or json output.
 
 On server side, after each test finished, the test results are collected
 from client and are stored in a json file in current directory.
