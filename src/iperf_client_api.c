@@ -364,6 +364,7 @@ iperf_run_client(struct iperf_test * test)
     cpu_util(NULL);
 
     startup = 1;
+
     while (test->state != IPERF_DONE) {
 	memcpy(&read_set, &test->read_set, sizeof(fd_set));
 	memcpy(&write_set, &test->write_set, sizeof(fd_set));
@@ -383,7 +384,15 @@ iperf_run_client(struct iperf_test * test)
 	    }
 	}
 
+
+        /* siri: duration to wait for next user input, in second */
+        int user_wait = 5;
+        int burst_wait = 300;    /* ms */
+
+        int burst_count = 0;
+
 	if (test->state == TEST_RUNNING) {
+            printf("Test is in running state \n");
 
 	    /* Is this our first time really running? */
 	    if (startup) {
@@ -397,19 +406,32 @@ iperf_run_client(struct iperf_test * test)
 		}
 	    }
 
-	    if (test->reverse) {
-		// Reverse mode. Client receives.
-		if (iperf_recv(test, &read_set) < 0)
-		    return -1;
-	    } else {
-		// Regular mode. Client sends.
-		if (iperf_send(test, &write_set) < 0)
-		    return -1;
-	    }
+            while (burst_count < 9) {
+                if (test->reverse) {
+                    // Reverse mode. Client receives.
+                    if (iperf_recv(test, &read_set) < 0)
+                        return -1;
+                } else {
+                    // Regular mode. Client sends.
+                    if (iperf_send(test, &write_set) < 0)
+                        return -1;
+                            // (void) gettimeofday(&last_burst_time, NULL);
+                }
+                /* Run the timers. */
+                (void) gettimeofday(&now, NULL);
+                tmr_run(&now);
 
-            /* Run the timers. */
-            (void) gettimeofday(&now, NULL);
-            tmr_run(&now);
+                usleep(burst_wait*1000);
+
+                burst_count++;
+                printf("burst_count = %d \n", burst_count);
+
+                if (burst_count == 9) {
+                    printf("Waiting for next user input... \n");
+                    sleep(user_wait);
+                }
+            }
+
 
 	    /* Is the test done yet? */
 	    if ((!test->omitting) &&
