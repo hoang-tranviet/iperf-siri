@@ -363,6 +363,9 @@ iperf_run_client(struct iperf_test * test)
     /* Begin calculating CPU utilization */
     cpu_util(NULL);
 
+    /* Seeding from time */
+    srand(time(NULL));
+
     startup = 1;
 
     while (test->state != IPERF_DONE) {

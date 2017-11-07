@@ -77,6 +77,8 @@ int
 iperf_tcp_send(struct iperf_stream *sp)
 {
     int r;
+    /* set the TCP packet size */
+    sp->settings->blksize = random_number(50, DEFAULT_TCP_BLKSIZE);
 
     if (sp->test->zerocopy)
 	r = Nsendfile(sp->buffer_fd, sp->socket, sp->buffer, sp->settings->blksize);

@@ -1086,32 +1086,36 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
         multisend = 1;	/* nope */
 
     for (; multisend > 0; --multisend) {
-	if (test->settings->rate != 0 && test->settings->burst == 0)
-	    gettimeofday(&now, NULL);
-	streams_active = 0;
-	SLIST_FOREACH(sp, &test->streams, streams) {
-	    if (! test->no_fq_socket_pacing ||
-		(sp->green_light &&
-		 (write_setP == NULL || FD_ISSET(sp->socket, write_setP)))) {
-		if ((r = sp->snd(sp)) < 0) {
-		    if (r == NET_SOFTERROR)
-			break;
-		    i_errno = IESTREAMWRITE;
-		    return r;
-		}
-		streams_active = 1;
-		test->bytes_sent += r;
-		++test->blocks_sent;
-		if (test->settings->rate != 0 && test->settings->burst == 0)
-		    iperf_check_throttle(sp, &now);
-		if (multisend > 1 && test->settings->bytes != 0 && test->bytes_sent >= test->settings->bytes)
-		    break;
-		if (multisend > 1 && test->settings->blocks != 0 && test->blocks_sent >= test->settings->blocks)
-		    break;
-	    }
-	}
-	if (!streams_active)
-	    break;
+        // printf("multisend: %d\n", multisend);
+        // if (test->settings->rate != 0 && test->settings->burst == 0)
+        //     gettimeofday(&now, NULL);
+        streams_active = 0;
+        SLIST_FOREACH(sp, &test->streams, streams) {
+            if (! test->no_fq_socket_pacing ||
+                (sp->green_light &&
+                 (write_setP == NULL || FD_ISSET(sp->socket, write_setP)))) {
+
+                // printf("call iperf_tcp_send(sp) \n");
+                if ((r = sp->snd(sp)) < 0) {
+                    if (r == NET_SOFTERROR)
+                        break;
+                    i_errno = IESTREAMWRITE;
+                    return r;
+                }
+                streams_active = 1;
+                test->bytes_sent += r;
+                printf("sent: %d bytes\n", r);
+                ++test->blocks_sent;
+                // if (test->settings->rate != 0 && test->settings->burst == 0)
+                //     iperf_check_throttle(sp, &now);
+                if (multisend > 1 && test->settings->bytes != 0 && test->bytes_sent >= test->settings->bytes)
+                    break;
+                if (multisend > 1 && test->settings->blocks != 0 && test->blocks_sent >= test->settings->blocks)
+                    break;
+            }
+        }
+        if (!streams_active)
+            break;
     }
     if (test->settings->burst != 0) {
 	gettimeofday(&now, NULL);
@@ -1854,7 +1858,7 @@ iperf_defaults(struct iperf_test *testp)
     testp->settings->blocks = 0;
     memset(testp->cookie, 0, COOKIE_SIZE);
 
-    testp->multisend = 10;	/* arbitrary */
+    testp->multisend = 9;	/* burst size */
 
     /* Set up protocol list */
     SLIST_INIT(&testp->streams);

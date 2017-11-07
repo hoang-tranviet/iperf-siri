@@ -32,6 +32,8 @@
 
 void make_cookie(char *);
 
+int random_number(int min_num, int max_num);
+
 int is_closed(int);
 
 double timeval_to_double(struct timeval *tv);
