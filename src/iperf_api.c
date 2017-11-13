@@ -80,6 +80,8 @@
 #include "iperf_locale.h"
 #include "version.h"
 
+#include "mptcp.h"
+
 /* Forwards. */
 static int send_parameters(struct iperf_test *test);
 static int get_parameters(struct iperf_test *test);

@@ -47,6 +47,7 @@
 #include "iperf_api.h"
 #include "iperf_tcp.h"
 #include "net.h"
+#include "mptcp.h"
 
 #if defined(HAVE_FLOWLABEL)
 #include "flowlabel.h"

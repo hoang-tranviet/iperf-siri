@@ -1,9 +1,11 @@
-// copy from  include/uapi/linux/tcp.h of mptcp socket API repo
-
-#ifndef __MPTCP_API_H
-#define __MPTCP_API_H
+// modified from  include/uapi/linux/tcp.h of mptcp socket API
 
 /* MPTCP API */
+
+#define MPTCP_ENABLED       42
+#define MPTCP_SCHEDULER     43
+#define MPTCP_PATH_MANAGER  44
+#define MPTCP_INFO          45
 
 #define MPTCP_GET_SUB_IDS       66      /* Get subflows ids */
 #define MPTCP_CLOSE_SUB_ID      67      /* Close sub id */
@@ -24,7 +26,6 @@ struct mptcp_sub_setsockopt {
     uint8_t         id;
     int             level;
     int             optname;
-    //char __user    *optval;
     char            *optval;
     unsigned int    optlen;
 };
@@ -33,8 +34,6 @@ struct mptcp_sub_getsockopt {
     uint8_t         id;
     int             level;
     int             optname;
-    //char __user    *optval;
-    //unsigned int    __user *optlen;
     char            *optval;
     unsigned int    *optlen;
 };
@@ -64,4 +63,3 @@ struct mptcp_sub_tuple {
 //  uint8_t     prio;	// This one in RFC but not implemented yet.
     uint8_t     addrs[0];
 };
-#endif
