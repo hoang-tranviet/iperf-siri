@@ -324,4 +324,6 @@ struct iperf_test
 
 extern int burst_count;
 
+extern int burst_count;
+
 #endif /* !__IPERF_H */
