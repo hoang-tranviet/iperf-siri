@@ -45,6 +45,7 @@
 #include "net.h"
 #include "timer.h"
 
+int burst_count = 0;
 
 int
 iperf_create_streams(struct iperf_test *test)
@@ -550,10 +551,9 @@ iperf_run_client(struct iperf_test * test)
         int user_wait = 5;
         int burst_wait = 300;    /* ms */
 
-        int burst_count = 0;
 
 	if (test->state == TEST_RUNNING) {
-            printf("Test is in running state \n");
+            // printf("Test is in running state \n");
 
 	    /* Is this our first time really running? */
 	    if (startup) {
@@ -567,7 +567,11 @@ iperf_run_client(struct iperf_test * test)
 		}
 	    }
 
+            burst_count = 0;
+
             while (burst_count < 9) {
+
+                printf("burst_count = %d \n", burst_count);
                 if (test->reverse) {
                     // Reverse mode. Client receives.
                     if (iperf_recv(test, &read_set) < 0)
