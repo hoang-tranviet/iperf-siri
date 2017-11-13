@@ -1077,13 +1077,7 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
     register struct iperf_stream *sp;
     struct timeval now;
 
-    /* Can we do multisend mode? */
-    if (test->settings->burst != 0)
-        multisend = test->settings->burst;
-    else if (test->settings->rate == 0)
-        multisend = test->multisend;
-    else
-        multisend = 1;	/* nope */
+    multisend = test->multisend;
 
     for (; multisend > 0; --multisend) {
         // printf("multisend: %d\n", multisend);
@@ -1095,8 +1089,20 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
                 (sp->green_light &&
                  (write_setP == NULL || FD_ISSET(sp->socket, write_setP)))) {
 
-                // printf("call iperf_tcp_send(sp) \n");
-                if ((r = sp->snd(sp)) < 0) {
+                /* burst_count = 8: the last burst */
+                if ((burst_count == 8) && (multisend == 1)) {
+                    printf("the last packet\n");
+                    char buffer[DEFAULT_TCP_BLKSIZE];
+                    for( int i = 0; i < DEFAULT_TCP_BLKSIZE; i++) {
+                        buffer[i]='1';
+                    }
+                    buffer[DEFAULT_TCP_BLKSIZE-1] ='\0';
+                    r = iperf_tcp_send(sp, buffer);
+                } else
+                    // printf("call iperf_tcp_send(sp) \n");
+                    r = iperf_tcp_send(sp, sp->buffer);
+
+                if (r < 0) {
                     if (r == NET_SOFTERROR)
                         break;
                     i_errno = IESTREAMWRITE;
@@ -2727,7 +2733,7 @@ iperf_new_stream(struct iperf_test *test, int s)
     }
     srandom(time(NULL));
     for (i = 0; i < test->settings->blksize; ++i)
-        sp->buffer[i] = random();
+        sp->buffer[i] = '0';
 
     /* Set socket */
     sp->socket = s;

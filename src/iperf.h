@@ -322,4 +322,6 @@ struct iperf_test
 #define MAX_MSS (9 * 1024)
 #define MAX_STREAMS 128
 
+extern int burst_count;
+
 #endif /* !__IPERF_H */
