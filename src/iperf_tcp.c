@@ -43,6 +43,7 @@
 #include <sys/select.h>
 
 #include "iperf.h"
+#include "iperf_util.h"
 #include "iperf_api.h"
 #include "iperf_tcp.h"
 #include "net.h"
@@ -51,6 +52,7 @@
 #include "flowlabel.h"
 #endif /* HAVE_FLOWLABEL */
 
+int max_bytes_read = 120000;
 /* iperf_tcp_recv
  *
  * receives the data for TCP
@@ -60,10 +62,25 @@ iperf_tcp_recv(struct iperf_stream *sp)
 {
     int r;
 
-    r = Nread(sp->socket, sp->buffer, sp->settings->blksize, Ptcp);
+    r = Nread(sp->socket, sp->buffer, max_bytes_read, Ptcp);
 
     if (r < 0)
         return r;
+
+    /* add null-character at the end of buffer string */
+    sp->buffer[r] = '\0';
+    printf("just read %d bytes\n", r);
+    // printf("%s \n", sp->buffer);
+
+    /* check for the last packet (marked by '1' char) of the voice sampling */
+    char *pch = strchr(sp->buffer,'1');
+    if (pch != NULL) {
+        // printf("end found at %td \n", sp->buffer - pch + 1);
+
+        int answer_size = 750;
+        int sent = Nwrite(sp->socket, sp->buffer, answer_size, Ptcp);
+        printf("received all samplings, sending back answer to client: %d bytes\n", sent);
+    }
 
     sp->result->bytes_received += r;
     sp->result->bytes_received_this_interval += r;
@@ -77,16 +94,16 @@ iperf_tcp_recv(struct iperf_stream *sp)
  * sends the data for TCP
  */
 int
-iperf_tcp_send(struct iperf_stream *sp)
+iperf_tcp_send(struct iperf_stream *sp, char *buffer)
 {
     int r;
     /* set the TCP packet size */
     sp->settings->blksize = random_number(50, DEFAULT_TCP_BLKSIZE);
 
     if (sp->test->zerocopy)
-	r = Nsendfile(sp->buffer_fd, sp->socket, sp->buffer, sp->settings->blksize);
+	r = Nsendfile(sp->buffer_fd, sp->socket, buffer, sp->settings->blksize);
     else
-	r = Nwrite(sp->socket, sp->buffer, sp->settings->blksize, Ptcp);
+	r = Nwrite(sp->socket, buffer, sp->settings->blksize, Ptcp);
 
     if (r < 0)
         return r;

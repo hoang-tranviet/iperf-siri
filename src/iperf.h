@@ -357,4 +357,6 @@ struct iperf_test
 #define MAX_STREAMS 128
 #define MAX_SUBFLOWS 8
 
+extern int burst_count;
+
 #endif /* !__IPERF_H */
