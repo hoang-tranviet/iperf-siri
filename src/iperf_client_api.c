@@ -191,6 +191,65 @@ create_client_omit_timer(struct iperf_test * test)
     return 0;
 }
 
+/* triggered when the burst/interaction wait finished */
+static void
+user_interact_timer_proc(TimerClientData client_data, struct timeval *nowP)
+{
+    printf("%lu.%lu: user_interact triggered: ", nowP->tv_sec % 10, nowP->tv_usec);
+    struct iperf_test *test = client_data.p;
+    test->user_interact = 1;
+}
+
+int
+set_user_wait(struct iperf_test * test, int usecs)
+{
+    struct timeval now;
+    TimerClientData cd;
+
+    if (gettimeofday(&now, NULL) < 0) {
+        return -1;
+    }
+    printf("%lu.%lu: user wait for %f s \n",
+        now.tv_sec % 10, now.tv_usec, ((float)usecs)/1000000);
+
+    cd.p = test;
+    test->user_interact = 0;
+    test->send_timer = tmr_create(&now, user_interact_timer_proc, cd, (int64_t) usecs, 0);
+
+    if (test->send_timer == NULL)
+        return -1;
+    return 0;
+}
+
+static void
+allow_sending_timer_proc(TimerClientData client_data, struct timeval *nowP)
+{
+    printf("%lu.%lu: new burst triggered: ", nowP->tv_sec % 10, nowP->tv_usec);
+    struct iperf_test *test = client_data.p;
+    test->on_burst = 1;
+}
+
+int
+set_inter_burst_wait(struct iperf_test * test, int usecs)
+{
+    struct timeval now;
+    TimerClientData cd;
+
+    if (gettimeofday(&now, NULL) < 0) {
+        return -1;
+    }
+    printf("%lu.%lu: turn off sending for %f s \n",
+        now.tv_sec % 10, now.tv_usec, ((float)usecs)/1000000);
+
+    test->on_burst = 0;
+    cd.p = test;
+
+    test->send_timer = tmr_create(&now, allow_sending_timer_proc, cd, (int64_t) usecs, 0);
+    if (test->send_timer == NULL)
+        return -1;
+    return 0;
+}
+
 int
 iperf_handle_message_client(struct iperf_test *test)
 {
@@ -231,9 +290,6 @@ iperf_handle_message_client(struct iperf_test *test)
                 return -1;
             if (create_client_omit_timer(test) < 0)
                 return -1;
-	    if (!test->reverse)
-		if (iperf_create_send_timers(test) < 0)
-		    return -1;
             break;
         case TEST_RUNNING:
             break;
@@ -491,6 +547,7 @@ iperf_run_client(struct iperf_test * test)
 {
     int startup;
     int result = 0;
+    int sent = 0;
     fd_set read_set, write_set;
     struct timeval now;
     struct timeval* timeout = NULL;
@@ -530,9 +587,13 @@ iperf_run_client(struct iperf_test * test)
     while (test->state != IPERF_DONE) {
 	memcpy(&read_set, &test->read_set, sizeof(fd_set));
 	memcpy(&write_set, &test->write_set, sizeof(fd_set));
+
+        /* timeout = how long to the next timed event */
 	(void) gettimeofday(&now, NULL);
 	timeout = tmr_timeout(&now);
+
 	result = select(test->max_fd + 1, &read_set, &write_set, NULL, timeout);
+
 	if (result < 0 && errno != EINTR) {
   	    i_errno = IESELECT;
 	    return -1;
@@ -545,7 +606,6 @@ iperf_run_client(struct iperf_test * test)
 		FD_CLR(test->ctrl_sck, &read_set);
 	    }
 	}
-
 
         /* siri: duration to wait for next user input, in second */
         int user_wait = 5;
@@ -578,7 +638,7 @@ iperf_run_client(struct iperf_test * test)
                         return -1;
                 } else {
                     // Regular mode. Client sends.
-                    if (iperf_send(test, &write_set) < 0)
+                    if ((sent = iperf_send(test, &write_set)) < 0)
                         return -1;
                             // (void) gettimeofday(&last_burst_time, NULL);
                 }
@@ -586,15 +646,20 @@ iperf_run_client(struct iperf_test * test)
                 (void) gettimeofday(&now, NULL);
                 tmr_run(&now);
 
-                usleep(burst_wait*1000);
-
-                burst_count++;
-                printf("burst_count = %d \n", burst_count);
+                if (sent > 0)
+                    burst_count++;
+                // printf("burst_count = %d \n", burst_count);
 
                 if (burst_count == 9) {
+                    printf("all bursts have been sent at %lu.%lu \n", now.tv_sec, now.tv_usec);
                     printf("Waiting for next user input... \n");
-                    sleep(user_wait);
+                    // sleep(user_wait);
+                    set_user_wait(test, user_wait*1000000L);
                 }
+                else
+                    /* wait per-burst: 300 ms by default */
+                    usleep(burst_wait*1000);
+                    // set_inter_burst_wait(test, burst_wait*1000L);
             }
 
 
