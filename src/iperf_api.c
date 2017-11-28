@@ -1073,20 +1073,22 @@ iperf_check_throttle(struct iperf_stream *sp, struct timeval *nowP)
 int
 iperf_send(struct iperf_test *test, fd_set *write_setP)
 {
-    register int multisend, r, streams_active;
+    register int multisend, r = 0, streams_active;
     register struct iperf_stream *sp;
     struct timeval now;
 
     multisend = test->multisend;
 
-    for (; multisend > 0; --multisend) {
-        // printf("multisend: %d\n", multisend);
-        // if (test->settings->rate != 0 && test->settings->burst == 0)
-        //     gettimeofday(&now, NULL);
+    while (multisend > 0) {
+        gettimeofday(&now, NULL);
+        usleep(5000);
         streams_active = 0;
         SLIST_FOREACH(sp, &test->streams, streams) {
-            if (! test->no_fq_socket_pacing ||
-                (sp->green_light &&
+            if (test->debug)
+                printf ("%lu.%lu: %d %d, %d %d %d: ",now.tv_sec %10, now.tv_usec,
+                   test->on_burst, test->user_interact, FD_ISSET(sp->socket, write_setP), multisend);
+
+            if ((sp->green_light && test->on_burst && test->user_interact &&
                  (write_setP == NULL || FD_ISSET(sp->socket, write_setP)))) {
 
                 /* burst_count = 8: the last burst */
@@ -1112,28 +1114,18 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
                 test->bytes_sent += r;
                 printf("sent: %d bytes\n", r);
                 ++test->blocks_sent;
-                // if (test->settings->rate != 0 && test->settings->burst == 0)
-                //     iperf_check_throttle(sp, &now);
                 if (multisend > 1 && test->settings->bytes != 0 && test->bytes_sent >= test->settings->bytes)
                     break;
                 if (multisend > 1 && test->settings->blocks != 0 && test->blocks_sent >= test->settings->blocks)
                     break;
             }
         }
+        if (r > 0)
+            multisend--;
         if (!streams_active)
             break;
     }
-    if (test->settings->burst != 0) {
-	gettimeofday(&now, NULL);
-	SLIST_FOREACH(sp, &test->streams, streams)
-	    iperf_check_throttle(sp, &now);
-    }
-    if (write_setP != NULL)
-	SLIST_FOREACH(sp, &test->streams, streams)
-	    if (FD_ISSET(sp->socket, write_setP))
-		FD_CLR(sp->socket, write_setP);
-
-    return 0;
+    return r;
 }
 
 int
@@ -1202,6 +1194,7 @@ iperf_create_send_timers(struct iperf_test * test)
     struct iperf_stream *sp;
     TimerClientData cd;
 
+    fprintf(stderr, "send_timers set \n");
     if (gettimeofday(&now, NULL) < 0) {
 	i_errno = IEINITTEST;
 	return -1;
@@ -1864,6 +1857,8 @@ iperf_defaults(struct iperf_test *testp)
     testp->settings->blocks = 0;
     memset(testp->cookie, 0, COOKIE_SIZE);
 
+    testp->user_interact = 1;
+    testp->on_burst = 1;
     testp->multisend = 9;	/* burst size */
 
     /* Set up protocol list */
@@ -2088,6 +2083,9 @@ iperf_reset_test(struct iperf_test *test)
     test->settings->burst = 0;
     test->settings->mss = 0;
     memset(test->cookie, 0, COOKIE_SIZE);
+
+    test->user_interact = 1;
+    test->on_burst = 1;
     test->multisend = 10;	/* arbitrary */
     test->udp_counters_64bit = 0;
 
