@@ -1252,8 +1252,9 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
                 /* burst_count = 8: the last burst */
                 if ((burst_count == 8) && (multisend == 1)) {
                     printf("the last packet\n");
+                    int i;
                     char buffer[DEFAULT_TCP_BLKSIZE];
-                    for( int i = 0; i < DEFAULT_TCP_BLKSIZE; i++) {
+                    for(i = 0; i < DEFAULT_TCP_BLKSIZE; i++) {
                         buffer[i]='1';
                     }
                     buffer[DEFAULT_TCP_BLKSIZE-1] ='\0';

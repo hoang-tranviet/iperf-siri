@@ -90,19 +90,6 @@ exit 1
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 
-# Check for SCTP support
-AC_CHECK_HEADERS([sys/socket.h])
-AC_CHECK_HEADERS([netinet/sctp.h],
-		 AC_DEFINE([HAVE_SCTP], [1], [Have SCTP support.])
-		 AC_SEARCH_LIBS(sctp_bindx, [sctp])
-		 AC_CHECK_TYPES([struct sctp_assoc_value], [], [],
-				[[#include <netinet/sctp.h>]]),
-		 [],
-		 [#ifdef HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
-#endif
-])
-
 # Check for TCP_CONGESTION sockopt (believed to be Linux and FreeBSD only)
 AC_CACHE_CHECK([TCP_CONGESTION socket option],
 [iperf3_cv_header_tcp_congestion],
