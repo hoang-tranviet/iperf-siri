@@ -2961,6 +2961,10 @@ iperf_json_start(struct iperf_test *test)
     if (test->json_intervals == NULL)
         return -1;
     cJSON_AddItemToObject(test->json_top, "intervals", test->json_intervals);
+    test->json_voice = cJSON_CreateArray();
+    if (test->json_voice == NULL)
+        return -1;
+    cJSON_AddItemToObject(test->json_top, "voice", test->json_voice);
     test->json_end = cJSON_CreateObject();
     if (test->json_end == NULL)
         return -1;
@@ -2986,7 +2990,7 @@ iperf_json_finish(struct iperf_test *test)
     fprintf(test->outfile, "%s\n", test->json_output_string);
     iflush(test);
     cJSON_Delete(test->json_top);
-    test->json_top = test->json_start = test->json_connected = test->json_intervals = test->json_server_output = test->json_end = NULL;
+    test->json_top = test->json_start = test->json_connected = test->json_intervals = test->json_server_output = test->json_voice = test->json_end = NULL;
     return 0;
 }
 
