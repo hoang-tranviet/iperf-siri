@@ -24,6 +24,7 @@
  * This code is distributed under a BSD style license, see the LICENSE
  * file for complete information.
  */
+#include <time.h>
 #include <errno.h>
 #include <setjmp.h>
 #include <stdio.h>
@@ -66,6 +67,7 @@ iperf_create_streams(struct iperf_test *test)
 	    FD_SET(s, &test->write_set);
 	else
 	    FD_SET(s, &test->read_set);
+
 	if (s > test->max_fd) test->max_fd = s;
 
         sp = iperf_new_stream(test, s);
@@ -78,6 +80,13 @@ iperf_create_streams(struct iperf_test *test)
     }
 
     return 0;
+}
+
+int client_recv(struct iperf_stream *sp)
+{
+    char buffer[2000];
+    int r = Nread(sp->socket, buffer, 2000, Ptcp);
+    return r;
 }
 
 static void
@@ -231,9 +240,6 @@ iperf_handle_message_client(struct iperf_test *test)
                 return -1;
             if (create_client_omit_timer(test) < 0)
                 return -1;
-	    if (!test->reverse)
-		if (iperf_create_send_timers(test) < 0)
-		    return -1;
             break;
         case TEST_RUNNING:
             break;
@@ -491,6 +497,7 @@ iperf_run_client(struct iperf_test * test)
 {
     int startup;
     int result = 0;
+    int receives = 0;
     fd_set read_set, write_set;
     struct timeval now;
     struct timeval* timeout = NULL;
@@ -530,8 +537,23 @@ iperf_run_client(struct iperf_test * test)
     while (test->state != IPERF_DONE) {
 	memcpy(&read_set, &test->read_set, sizeof(fd_set));
 	memcpy(&write_set, &test->write_set, sizeof(fd_set));
+
+
+        SLIST_FOREACH(sp, &test->streams, streams)
+        {
+	    FD_SET(sp->socket, &read_set);
+
+	    /* only monitor write buffer of socket if we want to send data */
+	    if ((test->on_burst) && (test->user_interact))
+	        FD_SET(sp->socket, &write_set);
+	    else
+	        FD_CLR(sp->socket, &write_set);
+        }
+
+        /* timeout = how long to the next timed event */
 	(void) gettimeofday(&now, NULL);
 	timeout = tmr_timeout(&now);
+
 	result = select(test->max_fd + 1, &read_set, &write_set, NULL, timeout);
 	if (result < 0 && errno != EINTR) {
   	    i_errno = IESELECT;
@@ -545,12 +567,6 @@ iperf_run_client(struct iperf_test * test)
 		FD_CLR(test->ctrl_sck, &read_set);
 	    }
 	}
-
-
-        /* siri: duration to wait for next user input, in second */
-        int user_wait = 5;
-        int burst_wait = 300;    /* ms */
-
 
 	if (test->state == TEST_RUNNING) {
             // printf("Test is in running state \n");
@@ -567,11 +583,32 @@ iperf_run_client(struct iperf_test * test)
 		}
 	    }
 
-            burst_count = 0;
+            // struct interaction *interact;
+            SLIST_FOREACH(sp, &test->streams, streams)
+            {
+                if (FD_ISSET(sp->socket, &read_set)) {
+                    receives = client_recv(sp);
+                    if(receives < 0)
+                        perror("client_recv");
+                    else if(receives > 0) {
+                    //     interact = (struct interaction *) malloc(sizeof(struct interaction));
+                    //     interact->response_time  = now;
+                        (void) gettimeofday(&now, NULL);
+                        printf("%lu.%lu: server reply %d bytes, on subflow: %d\n",
+                                now.tv_sec % 10, now.tv_usec, receives, sp->id);
+                        printf("======================== \n");
+                        printf("Request-response delay: %f\n", timeval_diff(&test->last_request_time, &now));
+                    }
+                };
 
-            while (burst_count < 9) {
+            };
 
-                printf("burst_count = %d \n", burst_count);
+            if ((test->on_burst) && (test->user_interact)) {
+
+                if (test->verbose)
+                    printf("burst_count = %d \n", test->burst_count);
+
+
                 if (test->reverse) {
                     // Reverse mode. Client receives.
                     if (iperf_recv(test, &read_set) < 0)
@@ -580,23 +617,12 @@ iperf_run_client(struct iperf_test * test)
                     // Regular mode. Client sends.
                     if (iperf_send(test, &write_set) < 0)
                         return -1;
-                            // (void) gettimeofday(&last_burst_time, NULL);
-                }
-                /* Run the timers. */
-                (void) gettimeofday(&now, NULL);
-                tmr_run(&now);
-
-                usleep(burst_wait*1000);
-
-                burst_count++;
-                printf("burst_count = %d \n", burst_count);
-
-                if (burst_count == 9) {
-                    printf("Waiting for next user input... \n");
-                    sleep(user_wait);
                 }
             }
 
+            /* Run the timers. */
+            (void) gettimeofday(&now, NULL);
+            tmr_run(&now);
 
 	    /* Is the test done yet? */
 	    if ((!test->omitting) &&

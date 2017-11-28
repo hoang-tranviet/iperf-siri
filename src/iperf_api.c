@@ -1230,30 +1230,102 @@ iperf_check_throttle(struct iperf_stream *sp, struct timeval *nowP)
     }
 }
 
+
+/* triggered when the burst/interaction wait finished */
+static void
+user_interact_timer_proc(TimerClientData client_data, struct timeval *nowP)
+{
+    struct iperf_test *test = client_data.p;
+    test->user_interact = 1;
+    if (test->debug)
+        printf("%lu.%lu: user_interact triggered:\n", nowP->tv_sec % 10, nowP->tv_usec);
+}
+
+int
+set_user_wait(struct iperf_test * test, int usecs)
+{
+    struct timeval now;
+    TimerClientData cd;
+
+    if (gettimeofday(&now, NULL) < 0) {
+        return -1;
+    }
+    if (test->debug)
+            printf("%lu.%lu: user wait for %f s \n",
+                now.tv_sec % 10, now.tv_usec, ((float)usecs)/1000000);
+
+    cd.p = test;
+    test->user_interact = 0;
+    test->send_timer = tmr_create(&now, user_interact_timer_proc, cd, (int64_t) usecs, 0);
+
+    if (test->send_timer == NULL)
+        return -1;
+    return 0;
+}
+
+static void
+allow_sending_timer_proc(TimerClientData client_data, struct timeval *nowP)
+{
+    printf("%lu.%lu: new burst triggered: ", nowP->tv_sec % 10, nowP->tv_usec);
+    struct iperf_test *test = client_data.p;
+    test->on_burst = 1;
+}
+
+int
+set_inter_burst_wait(struct iperf_test * test, int usecs)
+{
+    struct timeval now;
+    TimerClientData cd;
+
+    if (gettimeofday(&now, NULL) < 0) {
+        return -1;
+    }
+    printf("%lu.%lu: turn off sending for %f s \n",
+        now.tv_sec % 10, now.tv_usec, ((float)usecs)/1000000);
+
+    test->on_burst = 0;
+    cd.p = test;
+
+    test->send_timer = tmr_create(&now, allow_sending_timer_proc, cd, (int64_t) usecs, 0);
+    if (test->send_timer == NULL)
+        return -1;
+    return 0;
+}
+
+
 int
 iperf_send(struct iperf_test *test, fd_set *write_setP)
 {
-    register int multisend, r, streams_active;
+    /* siri: duration to wait for next user input, in second */
+    int user_wait = 5;
+    // int interactions = 0;    /* number of interactions */
+    int burst_wait = 300;    /* ms */
+
+    register int multisend, r = 0, streams_active;
     register struct iperf_stream *sp;
     struct timeval now;
 
     multisend = test->multisend;
 
-    for (; multisend > 0; --multisend) {
-        // printf("multisend: %d\n", multisend);
-        // if (test->settings->rate != 0 && test->settings->burst == 0)
-        //     gettimeofday(&now, NULL);
+    while (multisend > 0) {
+        gettimeofday(&now, NULL);
         streams_active = 0;
         SLIST_FOREACH(sp, &test->streams, streams) {
-            if (! test->no_fq_socket_pacing ||
-                (sp->green_light &&
+            if (test->debug)
+                printf ("%lu.%lu: %d %d, %d %d: ",now.tv_sec %10, now.tv_usec,
+                   test->on_burst, test->user_interact, FD_ISSET(sp->socket, write_setP), multisend);
+
+            if ((sp->green_light && test->on_burst && test->user_interact &&
                  (write_setP == NULL || FD_ISSET(sp->socket, write_setP)))) {
 
                 /* burst_count = 8: the last burst */
-                if ((burst_count == 8) && (multisend == 1)) {
-                    printf("the last packet\n");
+                if ((test->burst_count == 8) && (multisend == 1)) {
+                    if(test->verbose)
+                        printf("the last packet\n");
+                    /* the last packet is filled with '1111111...'*/
                     char buffer[DEFAULT_TCP_BLKSIZE];
-                    for( int i = 0; i < DEFAULT_TCP_BLKSIZE; i++) {
+                    int i;
+                    for(i = 0; i < DEFAULT_TCP_BLKSIZE; i++) {
                         buffer[i]='1';
                     }
                     buffer[DEFAULT_TCP_BLKSIZE-1] ='\0';
@@ -1270,30 +1342,51 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
                 }
                 streams_active = 1;
                 test->bytes_sent += r;
-                printf("sent: %d bytes\n", r);
+                if(test->verbose)
+                    printf("sent: %d bytes\n", r);
                 ++test->blocks_sent;
-                // if (test->settings->rate != 0 && test->settings->burst == 0)
-                //     iperf_check_throttle(sp, &now);
+
+                if (multisend == 1)
+                {
+                    test->burst_count++;
+                    printf("finished burst %d\n", test->burst_count);
+
+                    if (test->burst_count < 9)
+                        /* wait per-burst: 300 ms by default */
+                        // usleep(burst_wait*1000);
+                        set_inter_burst_wait(test, burst_wait*1000L);
+
+                    if (test->burst_count == 9) {
+                        (void) gettimeofday(&now, NULL);
+
+                        // interactions++;
+                        // interact->id = interactions;
+                        // interact->request_time   = now;
+                        // interact->response_time  = now;
+                        test->last_request_time = now;
+
+                        printf("%lu.%lu: all bursts have been sent\n", now.tv_sec %10, now.tv_usec);
+                        printf("Waiting for next user input... \n");
+                        // sleep(user_wait);
+                        set_user_wait(test, user_wait*1000000L);
+
+                        test->burst_count = 0;
+                    }
+                };
+
+
                 if (multisend > 1 && test->settings->bytes != 0 && test->bytes_sent >= test->settings->bytes)
                     break;
                 if (multisend > 1 && test->settings->blocks != 0 && test->blocks_sent >= test->settings->blocks)
                     break;
             }
         }
+        if (r > 0)
+            multisend--;
         if (!streams_active)
             break;
     }
-    if (test->settings->burst != 0) {
-	gettimeofday(&now, NULL);
-	SLIST_FOREACH(sp, &test->streams, streams)
-	    iperf_check_throttle(sp, &now);
-    }
-    if (write_setP != NULL)
-	SLIST_FOREACH(sp, &test->streams, streams)
-	    if (FD_ISSET(sp->socket, write_setP))
-		FD_CLR(sp->socket, write_setP);
-
-    return 0;
+    return r;
 }
 
 int
@@ -1369,6 +1462,7 @@ iperf_create_send_timers(struct iperf_test * test)
     struct iperf_stream *sp;
     TimerClientData cd;
 
+    fprintf(stderr, "send_timers set \n");
     if (gettimeofday(&now, NULL) < 0) {
 	i_errno = IEINITTEST;
 	return -1;
@@ -2162,7 +2256,12 @@ iperf_defaults(struct iperf_test *testp)
     testp->settings->blocks = 0;
     memset(testp->cookie, 0, COOKIE_SIZE);
 
+    testp->user_interact = 1;
+    testp->on_burst = 1;
     testp->multisend = 9;	/* burst size */
+    testp->burst_count = 0;
+    testp->send_count = 0;
+
 
     /* Set up protocol list */
     SLIST_INIT(&testp->streams);
@@ -2410,6 +2509,9 @@ iperf_reset_test(struct iperf_test *test)
     test->settings->burst = 0;
     test->settings->mss = 0;
     memset(test->cookie, 0, COOKIE_SIZE);
+
+    test->user_interact = 1;
+    test->on_burst = 1;
     test->multisend = 10;	/* arbitrary */
     test->udp_counters_64bit = 0;
     if (test->title) {
@@ -3510,6 +3612,9 @@ iperf_new_stream(struct iperf_test *test, int s)
 
     sp->snd = test->protocol->send;
     sp->rcv = test->protocol->recv;
+
+    /* enable sublow green_light on client, since we don't use send_timer anymore */
+    sp->green_light = 1;
 
     if (test->diskfile_name != (char*) 0) {
 	sp->diskfile_fd = open(test->diskfile_name, test->sender ? O_RDONLY : (O_WRONLY|O_CREAT|O_TRUNC), S_IRUSR|S_IWUSR);
