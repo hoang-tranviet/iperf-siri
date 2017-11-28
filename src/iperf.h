@@ -49,6 +49,14 @@
 
 typedef uint64_t iperf_size_t;
 
+struct interaction
+{
+    int             id;
+    struct timeval  request_time;
+    struct timeval  response_time;
+    // TAILQ_ENTRY(interaction) irlistentries;
+};
+
 struct iperf_interval_results
 {
     iperf_size_t bytes_transferred; /* bytes transfered in this interval */
@@ -261,6 +269,12 @@ struct iperf_test
     int        done;
     Timer     *stats_timer;
     Timer     *reporter_timer;
+    Timer     *send_timer;
+    int       on_burst;
+    int       user_interact;
+    int       send_count;
+    int       burst_count;
+    struct timeval  last_request_time;
 
     double cpu_util[3];                            /* cpu utilization of the test - total, user, system */
     double remote_cpu_util[3];                     /* cpu utilization for the remote host/client - total, user, system */
