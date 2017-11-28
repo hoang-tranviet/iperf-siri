@@ -289,6 +289,7 @@ struct iperf_test
     cJSON *json_top;
     cJSON *json_start;
     cJSON *json_connected;
+    cJSON *json_voice;
     cJSON *json_intervals;
     cJSON *json_end;
 
