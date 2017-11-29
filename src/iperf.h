@@ -49,6 +49,14 @@
 
 typedef uint64_t iperf_size_t;
 
+struct interaction
+{
+    int             id;
+    struct timeval  request_time;
+    struct timeval  response_time;
+    // TAILQ_ENTRY(interaction) irlistentries;
+};
+
 struct iperf_interval_results
 {
     iperf_size_t bytes_transferred; /* bytes transfered in this interval */

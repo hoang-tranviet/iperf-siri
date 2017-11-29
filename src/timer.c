@@ -134,6 +134,7 @@ add_usecs( struct timeval* t, int64_t usecs )
 }
 
 
+#include <stdio.h>
 Timer*
 tmr_create(
     struct timeval* nowP, TimerProc* timer_proc, TimerClientData client_data,
@@ -160,7 +161,7 @@ tmr_create(
     t->time = now;
     add_usecs( &t->time, usecs );
     /* Add the new timer to the active list. */
-    printf("Add new timer: %u.%lu\n", t->time.tv_sec % 10, t->time.tv_usec);
+    printf("Add new timer: %lu.%lu\n", t->time.tv_sec % 10, t->time.tv_usec);
     list_add( t );
 
     return t;

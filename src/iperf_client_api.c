@@ -24,6 +24,7 @@
  * This code is distributed under a BSD style license, see the LICENSE
  * file for complete information.
  */
+#include <time.h>
 #include <errno.h>
 #include <setjmp.h>
 #include <stdio.h>
@@ -62,8 +63,10 @@ iperf_create_streams(struct iperf_test *test)
 
 	if (test->sender)
 	    FD_SET(s, &test->write_set);
-	else
-	    FD_SET(s, &test->read_set);
+
+	FD_SET(s, &test->read_set);
+        printf("add to read_set: %d\n", s);
+
 	if (s > test->max_fd) test->max_fd = s;
 
         sp = iperf_new_stream(test, s);
@@ -76,6 +79,20 @@ iperf_create_streams(struct iperf_test *test)
     }
 
     return 0;
+}
+
+int client_recv(struct iperf_stream *sp)
+{
+    struct timeval now;
+    char *buffer = (char *) malloc (12000);
+    int r = Nread(sp->socket, buffer, 12000, Ptcp);
+    if ((r > 0)) {
+        (void) gettimeofday(&now, NULL);
+        printf("%lu.%lu: server reply %d bytes \n",
+                now.tv_sec % 10, now.tv_usec, r);
+        printf("======================== \n");
+    }
+    return r;
 }
 
 static void
@@ -193,9 +210,10 @@ create_client_omit_timer(struct iperf_test * test)
 static void
 user_interact_timer_proc(TimerClientData client_data, struct timeval *nowP)
 {
-    printf("%lu.%lu: user_interact triggered: ", nowP->tv_sec % 10, nowP->tv_usec);
     struct iperf_test *test = client_data.p;
     test->user_interact = 1;
+    if (test->debug)
+        printf("%lu.%lu: user_interact triggered:\n", nowP->tv_sec % 10, nowP->tv_usec);
 }
 
 int
@@ -207,8 +225,9 @@ set_user_wait(struct iperf_test * test, int usecs)
     if (gettimeofday(&now, NULL) < 0) {
         return -1;
     }
-    printf("%lu.%lu: user wait for %f s \n",
-        now.tv_sec % 10, now.tv_usec, ((float)usecs)/1000000);
+    if (test->debug)
+            printf("%lu.%lu: user wait for %f s \n",
+                now.tv_sec % 10, now.tv_usec, ((float)usecs)/1000000);
 
     cd.p = test;
     test->user_interact = 0;
@@ -430,29 +449,34 @@ iperf_run_client(struct iperf_test * test)
 	memcpy(&read_set, &test->read_set, sizeof(fd_set));
 	memcpy(&write_set, &test->write_set, sizeof(fd_set));
 
+
         /* timeout = how long to the next timed event */
 	(void) gettimeofday(&now, NULL);
 	timeout = tmr_timeout(&now);
 
-	result = select(test->max_fd + 1, &read_set, &write_set, NULL, timeout);
 
-	if (result < 0 && errno != EINTR) {
-  	    i_errno = IESELECT;
-	    return -1;
-	}
-	if (result > 0) {
-	    if (FD_ISSET(test->ctrl_sck, &read_set)) {
- 	        if (iperf_handle_message_client(test) < 0) {
-		    return -1;
-		}
-		FD_CLR(test->ctrl_sck, &read_set);
-	    }
-	}
+    FD_SET(4, &test->read_set);
+
+    // printf("max_fd=%d\n",test->max_fd);
+    result = select(test->max_fd + 1, &read_set, &write_set, NULL, timeout);
+
+    if (result < 0 && errno != EINTR) {
+        i_errno = IESELECT;
+        return -1;
+    }
+    if (result > 0) {
+        if (FD_ISSET(test->ctrl_sck, &read_set)) {
+            if (iperf_handle_message_client(test) < 0) {
+            return -1;
+        }
+        FD_CLR(test->ctrl_sck, &read_set);
+        }
+    }
 
         /* siri: duration to wait for next user input, in second */
         int user_wait = 5;
+        int interactions = 0;
         int burst_wait = 300;    /* ms */
-
 
 	if (test->state == TEST_RUNNING) {
             // printf("Test is in running state \n");
@@ -470,10 +494,29 @@ iperf_run_client(struct iperf_test * test)
 	    }
 
             burst_count = 0;
+            struct interaction *interact;
+            interact = (struct interaction *) malloc(sizeof(struct interaction));
 
             while (burst_count < 9) {
 
-                printf("burst_count = %d \n", burst_count);
+                if (test->verbose)
+                    printf("burst_count = %d \n", burst_count);
+
+                SLIST_FOREACH(sp, &test->streams, streams)
+                {
+                      /* Don't know why sp never in read_set, even when we FD_SET before select
+                       and it has received data */
+                      // if (test->user_interact == 0) {
+                      //   if (FD_ISSET(sp->socket, &read_set))
+                      //       printf("sp: %d is in read_set !!!\n", sp->socket);
+                      //   else
+                      //       printf("sp: %d is NOT in read_set !!!\n", sp->socket);
+                      // }
+                      if(client_recv(sp)) {
+                        interact->response_time  = now;
+                      }
+                }
+
                 if (test->reverse) {
                     // Reverse mode. Client receives.
                     if (iperf_recv(test, &read_set) < 0)
@@ -482,7 +525,6 @@ iperf_run_client(struct iperf_test * test)
                     // Regular mode. Client sends.
                     if ((sent = iperf_send(test, &write_set)) < 0)
                         return -1;
-                            // (void) gettimeofday(&last_burst_time, NULL);
                 }
                 /* Run the timers. */
                 (void) gettimeofday(&now, NULL);
@@ -493,7 +535,14 @@ iperf_run_client(struct iperf_test * test)
                 // printf("burst_count = %d \n", burst_count);
 
                 if (burst_count == 9) {
-                    printf("all bursts have been sent at %lu.%lu \n", now.tv_sec, now.tv_usec);
+                    (void) gettimeofday(&now, NULL);
+
+                    interactions++;
+                    interact->id = interactions;
+                    interact->request_time   = now;
+                    interact->response_time  = now;
+
+                    printf("%lu.%lu: all bursts have been sent\n", now.tv_sec %10, now.tv_usec);
                     printf("Waiting for next user input... \n");
                     // sleep(user_wait);
                     set_user_wait(test, user_wait*1000000L);

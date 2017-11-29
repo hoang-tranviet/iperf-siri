@@ -1081,7 +1081,7 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
 
     while (multisend > 0) {
         gettimeofday(&now, NULL);
-        usleep(5000);
+        // usleep(1000);
         streams_active = 0;
         SLIST_FOREACH(sp, &test->streams, streams) {
             if (test->debug)
@@ -1093,9 +1093,12 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
 
                 /* burst_count = 8: the last burst */
                 if ((burst_count == 8) && (multisend == 1)) {
-                    printf("the last packet\n");
+                    if(test->verbose)
+                        printf("the last packet\n");
+                    /* the last packet is filled with '1111111...'*/
                     char buffer[DEFAULT_TCP_BLKSIZE];
-                    for( int i = 0; i < DEFAULT_TCP_BLKSIZE; i++) {
+                    int i;
+                    for(i = 0; i < DEFAULT_TCP_BLKSIZE; i++) {
                         buffer[i]='1';
                     }
                     buffer[DEFAULT_TCP_BLKSIZE-1] ='\0';
@@ -1112,7 +1115,8 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
                 }
                 streams_active = 1;
                 test->bytes_sent += r;
-                printf("sent: %d bytes\n", r);
+                if(test->verbose)
+                    printf("sent: %d bytes\n", r);
                 ++test->blocks_sent;
                 if (multisend > 1 && test->settings->bytes != 0 && test->bytes_sent >= test->settings->bytes)
                     break;
@@ -2738,6 +2742,9 @@ iperf_new_stream(struct iperf_test *test, int s)
 
     sp->snd = test->protocol->send;
     sp->rcv = test->protocol->recv;
+
+    /* enable sublow green_light on client, since we don't use send_timer anymore */
+    sp->green_light = 1;
 
     if (test->diskfile_name != (char*) 0) {
 	sp->diskfile_fd = open(test->diskfile_name, test->sender ? O_RDONLY : (O_WRONLY|O_CREAT|O_TRUNC), S_IRUSR|S_IWUSR);
