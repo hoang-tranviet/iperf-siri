@@ -64,7 +64,7 @@ iperf_tcp_recv(struct iperf_stream *sp)
 
     r = Nread(sp->socket, sp->buffer, max_bytes_read, Ptcp);
 
-    if (r < 0)
+    if (r <= 0)
         return r;
 
     /* add null-character at the end of buffer string */
@@ -72,7 +72,8 @@ iperf_tcp_recv(struct iperf_stream *sp)
     printf("just read %d bytes\n", r);
     // printf("%s \n", sp->buffer);
 
-    /* check for the last packet (marked by '1' char) of the voice sampling */
+    /* if request string contains '1' char:
+       it is the last packet of the last burst the voice sampling */
     char *pch = strchr(sp->buffer,'1');
     if (pch != NULL) {
         // printf("end found at %td \n", sp->buffer - pch + 1);
@@ -80,6 +81,15 @@ iperf_tcp_recv(struct iperf_stream *sp)
         int answer_size = 750;
         int sent = Nwrite(sp->socket, sp->buffer, answer_size, Ptcp);
         printf("received all samplings, sending back answer to client: %d bytes\n", sent);
+    }
+    /* if request string contains '2' char:
+       it is the last packet of previous burst */
+    else if (strchr(sp->buffer,'2') != NULL) {
+        int bytes = 100;
+        int sent = Nwrite(sp->socket, sp->buffer, bytes, Ptcp);
+        printf("send back %d Bytes \n", bytes);
+        if (sent <= 0)
+            perror("send back");
     }
 
     sp->result->bytes_received += r;
