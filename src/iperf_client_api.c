@@ -590,7 +590,7 @@ iperf_run_client(struct iperf_test * test)
                     receives = client_recv(sp);
                     if(receives < 0)
                         perror("client_recv");
-                    else if(receives > 0) {
+                    else if(receives > 700) {
                     //     interact = (struct interaction *) malloc(sizeof(struct interaction));
                     //     interact->response_time  = now;
                         (void) gettimeofday(&now, NULL);
@@ -599,6 +599,11 @@ iperf_run_client(struct iperf_test * test)
                         printf("======================== \n");
                         printf("Request-response delay: %f\n", timeval_diff(&test->last_request_time, &now));
                     }
+                    else if (receives > 0) {
+                        (void) gettimeofday(&now, NULL);
+                        printf("RTT: %f\n", timeval_diff(&test->last_request_time, &now));
+                    }
+
                 };
 
             };

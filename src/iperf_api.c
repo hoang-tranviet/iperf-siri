@@ -1297,7 +1297,7 @@ int
 iperf_send(struct iperf_test *test, fd_set *write_setP)
 {
     /* siri: duration to wait for next user input, in second */
-    int user_wait = 5;
+    int user_wait = 2;
     // int interactions = 0;    /* number of interactions */
     int burst_wait = 300;    /* ms */
 
