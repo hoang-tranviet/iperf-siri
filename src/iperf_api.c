@@ -1318,15 +1318,20 @@ iperf_send(struct iperf_test *test, fd_set *write_setP)
             if ((sp->green_light && test->on_burst && test->user_interact &&
                  (write_setP == NULL || FD_ISSET(sp->socket, write_setP)))) {
 
-                /* burst_count = 8: the last burst */
-                if ((test->burst_count == 8) && (multisend == 1)) {
+                if ( (multisend == 1)) {
                     if(test->verbose)
                         printf("the last packet\n");
-                    /* the last packet is filled with '1111111...'*/
                     char buffer[DEFAULT_TCP_BLKSIZE];
+                    char marked_char = '0';
                     int i;
+                    /* if last burst: last packet is filled with '1111111...'*/
+                    if (test->burst_count == 8)
+                        marked_char =  '1';
+                    /* if other burst: last packet is filled with '2222222...'*/
+                    else if (test->burst_count < 8)
+                        marked_char =  '2';
                     for(i = 0; i < DEFAULT_TCP_BLKSIZE; i++) {
-                        buffer[i]='1';
+                        buffer[i] = marked_char;
                     }
                     buffer[DEFAULT_TCP_BLKSIZE-1] ='\0';
                     r = iperf_tcp_send(sp, buffer);
