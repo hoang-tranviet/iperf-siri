@@ -598,6 +598,25 @@ get_local_IP_list(struct iperf_test *test)
 }
 
 
+void free_local_address_list(struct iperf_test *test) {
+    /* Free local address list */
+    struct iperf_ip_addrs *ip;
+    while (!SLIST_EMPTY(&test->ip_addrs)) {
+        ip = SLIST_FIRST(&test->ip_addrs);
+        SLIST_REMOVE_HEAD(&test->ip_addrs, ip_addrs);
+        free(ip->ip);
+    }
+}
+void free_remote_address_list(struct iperf_test *test) {
+    /* Free remote address list */
+    struct iperf_ip_addrs *ip;
+    while (!SLIST_EMPTY(&test->remote_ip_addrs)) {
+        ip = SLIST_FIRST(&test->remote_ip_addrs);
+        SLIST_REMOVE_HEAD(&test->remote_ip_addrs, ip_addrs);
+        free(ip->ip);
+    }
+}
+
 /************************** Iperf callback functions **************************/
 
 void
@@ -1561,6 +1580,7 @@ send_parameters(struct iperf_test *test)
 	}
 	cJSON_Delete(j);
     }
+    free_local_address_list(test);
     return r;
 }
 
@@ -2255,6 +2275,23 @@ iperf_free_test(struct iperf_test *test)
         iperf_free_subflow(sf);
     }
 
+    printf("free test \n");
+    /* Free local address list */
+    struct iperf_ip_addrs *ip;
+    while (!SLIST_EMPTY(&test->ip_addrs)) {
+        ip = SLIST_FIRST(&test->ip_addrs);
+        SLIST_REMOVE_HEAD(&test->ip_addrs, ip_addrs);
+        free(ip->ip);
+        free(ip);
+    }
+    /* Free remote address list */
+    while (!SLIST_EMPTY(&test->remote_ip_addrs)) {
+        ip = SLIST_FIRST(&test->remote_ip_addrs);
+        SLIST_REMOVE_HEAD(&test->remote_ip_addrs, ip_addrs);
+        free(ip->ip);
+        free(ip);
+    }
+
     if (test->iperf_version)
 	free(test->iperf_version);
     if (test->client_script_version)
@@ -2358,6 +2395,8 @@ iperf_reset_test(struct iperf_test *test)
         SLIST_REMOVE_HEAD(&test->subflows, subflows);
         iperf_free_subflow(sf);
     }
+
+    printf("reset test \n");
 
     if (test->omit_timer != NULL) {
 	tmr_cancel(test->omit_timer);

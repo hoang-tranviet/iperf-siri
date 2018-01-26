@@ -430,6 +430,8 @@ cleanup_server(struct iperf_test *test)
     test->num_subflows = 0;
     test->remote_iperf_supports_mptcp = 0;
 
+    printf("cleanup server \n");
+
     /* Close open test sockets */
     if (test->ctrl_sck) {
 	close(test->ctrl_sck);

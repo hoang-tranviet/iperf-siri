@@ -52,7 +52,7 @@
 #include "flowlabel.h"
 #endif /* HAVE_FLOWLABEL */
 
-int max_bytes_read = 120000;
+int max_bytes_read = 5000;
 /* iperf_tcp_recv
  *
  * receives the data for TCP
@@ -62,31 +62,36 @@ iperf_tcp_recv(struct iperf_stream *sp)
 {
     int r;
 
-    r = Nread(sp->socket, sp->buffer, max_bytes_read, Ptcp);
+    char *buffer;
+    if ((buffer = malloc(max_bytes_read + 10)) == NULL)
+        return -1;
+    r = Nread(sp->socket, buffer, max_bytes_read, Ptcp);
 
-    if (r <= 0)
+    if (r <= 0) {
+        free(buffer);
         return r;
+    }
 
     /* add null-character at the end of buffer string */
-    sp->buffer[r] = '\0';
+    buffer[r] = '\0';
     printf("just read %d bytes\n", r);
     // printf("%s \n", sp->buffer);
 
     /* if request string contains '1' char:
        it is the last packet of the last burst the voice sampling */
-    char *pch = strchr(sp->buffer,'1');
+    char *pch = strchr(buffer,'1');
     if (pch != NULL) {
         // printf("end found at %td \n", sp->buffer - pch + 1);
 
         int answer_size = 750;
-        int sent = Nwrite(sp->socket, sp->buffer, answer_size, Ptcp);
+        int sent = Nwrite(sp->socket, buffer, answer_size, Ptcp);
         printf("received all samplings, sending back answer to client: %d bytes\n", sent);
     }
     /* if request string contains '2' char:
        it is the last packet of previous burst */
-    else if (strchr(sp->buffer,'2') != NULL) {
+    else if (strchr(buffer,'2') != NULL) {
         int bytes = 100;
-        int sent = Nwrite(sp->socket, sp->buffer, bytes, Ptcp);
+        int sent = Nwrite(sp->socket, buffer, bytes, Ptcp);
         printf("send back %d Bytes \n", bytes);
         if (sent <= 0)
             perror("send back");
@@ -95,6 +100,7 @@ iperf_tcp_recv(struct iperf_stream *sp)
     sp->result->bytes_received += r;
     sp->result->bytes_received_this_interval += r;
 
+    free(buffer);
     return r;
 }
 

@@ -96,7 +96,8 @@ void get_mptcp_scheduler(int s)
     errno = 0;
     r = getsockopt(s, IPPROTO_TCP, MPTCP_SCHEDULER,
                     sched_opt, &optlen);
-    printf("got scheduler: %s return = %d \n", sched_opt, r);
+    if (r >= 0)
+        printf("got scheduler: %s \n", sched_opt);
     errno = 0;
 }
 /* netdial and netannouce code comes from libtask: http://swtch.com/libtask/
