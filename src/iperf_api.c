@@ -1571,7 +1571,9 @@ send_parameters(struct iperf_test *test)
 	cJSON_AddStringToObject(j, "client_version", IPERF_VERSION);
 
 	if (test->debug) {
-	    printf("send_parameters:\n%s\n", cJSON_Print(j));
+        char *param = cJSON_Print(j);
+	    printf("send_parameters:\n%s\n", param);
+        free(param);
 	}
 
 	if (JSON_write(test->ctrl_sck, j) < 0) {
@@ -1602,7 +1604,9 @@ client_get_parameters(struct iperf_test *test)
         return (0);
     }
     if (test->debug) {
-        printf("get_parameters:\n%s\n", cJSON_Print(j));
+        char *param = cJSON_Print(j);
+        printf("get_parameters:\n%s\n", param);
+        free(param);
     }
 
     if ((j_p = cJSON_GetObjectItem(j, "mptcp")) != NULL)
@@ -1646,7 +1650,9 @@ get_parameters(struct iperf_test *test)
         r = -1;
     } else {
 	if (test->debug) {
-	    printf("get_parameters:\n%s\n", cJSON_Print(j));
+        char *param = cJSON_Print(j);
+        printf("get_parameters:\n%s\n", param);
+        free(param);
 	}
 
 	if ((j_p = cJSON_GetObjectItem(j, "tcp")) != NULL)
@@ -1807,7 +1813,9 @@ send_results(struct iperf_test *test)
                     cJSON_AddItemReferenceToObject(j, "client_output", test->json_top);
                 }
                 if (r == 0 && test->debug) {
-                    printf("send_results\n%s\n", cJSON_Print(j));
+                    char *result = cJSON_Print(j);
+                    printf("send_results\n%s\n", result);
+                    free(result);
                 }
                 /* send results in json over separated control channel */
                 if (r == 0 && JSON_write(test->ctrl_sck, j) < 0) {
@@ -1857,7 +1865,9 @@ get_results(struct iperf_test *test)
 	    r = -1;
 	} else {
 	    if (test->debug) {
-		printf("get_results\n%s\n", cJSON_Print(j));
+            char *result = cJSON_Print(j);
+            printf("get_results\n%s\n", result);
+            free(result);
 	    }
 
 	    test->remote_cpu_util[0] = j_cpu_util_total->valuedouble;
