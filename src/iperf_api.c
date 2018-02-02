@@ -3261,15 +3261,16 @@ iperf_reporter_callback(struct iperf_test *test)
         case STREAM_RUNNING:
             /* print interval results for each stream */
             if (test->mptcp_enabled)
-                iperf_print_sf_intermediate(test);
+                {}
+                //iperf_print_sf_intermediate(test);
             else
                 iperf_print_intermediate(test);
             break;
         case TEST_END:
         case DISPLAY_RESULTS:
             if (test->mptcp_enabled) {
-                iperf_print_sf_intermediate(test);
-                iperf_print_sf_results(test);
+                //iperf_print_sf_intermediate(test);
+                //iperf_print_sf_results(test);
             }
             else {
                 iperf_print_intermediate(test);
