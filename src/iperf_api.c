@@ -3806,16 +3806,22 @@ iperf_json_finish(struct iperf_test *test)
 char *
 get_client_test_id( cJSON * j)
 {
-    cJSON *j_start   = cJSON_CreateObject();
-    cJSON *j_test_id = cJSON_CreateObject();
+    cJSON *j_start;
+    cJSON *j_test_id;
     if (j != NULL)
+    {
         j_start = cJSON_GetObjectItem(j, "start");
-    if (j_start != NULL)
-        j_test_id = cJSON_GetObjectItem(j_start,"test_id");
-    if (j_test_id != NULL)
-        return j_test_id->valuestring;
-    else
-        return "0";
+        if (j_start != NULL)
+        {
+            j_test_id = cJSON_GetObjectItem(j_start,"test_id");
+            if (j_test_id != NULL) {
+                char *test_id = strdup(j_test_id->valuestring);
+                cJSON_Delete(j_start);
+                return test_id;
+            }
+        }
+    }
+    return "0";
 }
 
 /* Write test result of both client and server to json file */
@@ -3846,6 +3852,7 @@ save_test_results_to_file(struct iperf_test *test)
             cJSON_AddItemReferenceToObject(j_both, "server", test->json_top);
             cJSON_AddItemReferenceToObject(j_both, "client", test->json_client_output);
             test->json_output_string = cJSON_Print(j_both);
+            cJSON_Delete(j_both);
         }
 
         char* json_filename = malloc(80*sizeof(char));
@@ -3860,6 +3867,7 @@ save_test_results_to_file(struct iperf_test *test)
         if (!json_file)
             return -1;
         fprintf(json_file, "%s\n", test->json_output_string);
+        free(test->json_output_string);
         fclose(json_file);
         chdir("../../");
         free(json_filename);
