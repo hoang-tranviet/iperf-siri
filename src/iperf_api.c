@@ -3791,6 +3791,7 @@ iperf_json_finish(struct iperf_test *test)
 	cJSON_AddStringToObject(test->json_top, "server_output_text", test->server_output_text);
     }
     test->json_output_string = cJSON_Print(test->json_top);
+
     if (test->json_output_string == NULL)
         return -1;
 
@@ -3798,6 +3799,7 @@ iperf_json_finish(struct iperf_test *test)
         save_test_results_to_file(test);
 
     iflush(test);
+    free(test->json_output_string);
     cJSON_Delete(test->json_top);
     test->json_top = test->json_start = test->json_connected = test->json_intervals = test->json_server_output = test->json_end = NULL;
     return 0;

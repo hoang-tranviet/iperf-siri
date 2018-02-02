@@ -638,13 +638,13 @@ iperf_run_server(struct iperf_test *test)
 	}
     }
 
-    cleanup_server(test);
-
     if ((test->json_output) ||
         (test->remote_iperf_supports_mptcp)) {
 	if (iperf_json_finish(test) < 0)
 	    return -1;
     } 
+
+    cleanup_server(test);
 
     iflush(test);
 
