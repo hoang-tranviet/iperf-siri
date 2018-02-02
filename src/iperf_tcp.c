@@ -63,7 +63,7 @@ iperf_tcp_recv(struct iperf_stream *sp)
     int r;
 
     char *buffer;
-    if ((buffer = malloc(max_bytes_read + 10)) == NULL)
+    if ((buffer = calloc(max_bytes_read + 10, sizeof(char))) == NULL)
         return -1;
     r = Nread(sp->socket, buffer, max_bytes_read, Ptcp);
 
