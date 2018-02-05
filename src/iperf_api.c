@@ -2292,14 +2292,12 @@ iperf_free_test(struct iperf_test *test)
         ip = SLIST_FIRST(&test->ip_addrs);
         SLIST_REMOVE_HEAD(&test->ip_addrs, ip_addrs);
         free(ip->ip);
-        free(ip);
     }
     /* Free remote address list */
     while (!SLIST_EMPTY(&test->remote_ip_addrs)) {
         ip = SLIST_FIRST(&test->remote_ip_addrs);
         SLIST_REMOVE_HEAD(&test->remote_ip_addrs, ip_addrs);
         free(ip->ip);
-        free(ip);
     }
 
     if (test->iperf_version)
