@@ -3829,7 +3829,8 @@ get_client_test_id( cJSON * j)
             j_test_id = cJSON_GetObjectItem(j_start,"test_id");
             if (j_test_id != NULL) {
                 char *test_id = strdup(j_test_id->valuestring);
-                cJSON_Delete(j_start);
+                // if (j_start != NULL)
+                //    cJSON_Delete(j_start);
                 return test_id;
             }
         }
@@ -3845,8 +3846,11 @@ save_test_results_to_file(struct iperf_test *test)
         /* concatenate path string from "results/" and {test-id} */
         if (test->role == 'c')
             snprintf(path, sizeof path, "results/%s", test->test_id);
-        else
-            snprintf(path, sizeof path, "results/%s", get_client_test_id(test->json_client_output));
+        else {
+            char * test_id =get_client_test_id(test->json_client_output);
+            snprintf(path, sizeof path, "results/%s", test_id);
+            free(test_id);
+        }
 
         if (mkdir("results", 0755) == 0)
             printf("Folder results/ not found. Created a new one.\n");
