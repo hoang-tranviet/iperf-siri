@@ -600,8 +600,9 @@ iperf_run_client(struct iperf_test * test)
                         printf("Request-response delay: %f\n", timeval_diff(&test->last_request_time, &now));
                     }
                     else if (receives > 0) {
-                        (void) gettimeofday(&now, NULL);
-                        printf("RTT: %f\n", timeval_diff(&test->last_request_time, &now));
+                        // this RTT calculation is wrong
+                        // (void) gettimeofday(&now, NULL);
+                        // printf("RTT: %f\n", timeval_diff(&test->last_request_time, &now));
                     }
 
                 };
