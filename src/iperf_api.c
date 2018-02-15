@@ -1669,6 +1669,8 @@ get_parameters(struct iperf_test *test)
             set_protocol(test, Psctp);
         if ((j_p = cJSON_GetObjectItem(j, "mptcp")) != NULL)
             test->remote_iperf_supports_mptcp = 1;
+        if ((j_p = cJSON_GetObjectItem(j, "inter_response")) != NULL)
+            test->inter_response = 1;
 	if ((j_p = cJSON_GetObjectItem(j, "omit")) != NULL)
 	    test->omit = j_p->valueint;
 	if ((j_p = cJSON_GetObjectItem(j, "server_affinity")) != NULL)
@@ -2458,6 +2460,7 @@ iperf_reset_test(struct iperf_test *test)
     
     test->num_streams = 1;
     test->num_subflows = 0;
+    test->inter_response = 0;
     test->settings->socket_bufsize = 0;
     test->settings->blksize = DEFAULT_TCP_BLKSIZE;
     test->settings->rate = 0;

@@ -89,7 +89,7 @@ iperf_tcp_recv(struct iperf_stream *sp)
     }
     /* if request string contains '2' char:
        it is the last packet of previous burst */
-    else if (strchr(buffer,'2') != NULL) {
+    else if ((sp->test->inter_response != 0) && (strchr(buffer,'2') != NULL)) {
         int bytes = 100;
         int sent = Nwrite(sp->socket, buffer, bytes, Ptcp);
         printf("send back %d Bytes \n", bytes);
