@@ -780,6 +780,7 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
         {"parallel", required_argument, NULL, 'P'},
         {"subflows", required_argument, NULL, 'm'},
         {"scheduler", required_argument, NULL, OPT_SCHEDULER},
+        {"inter-response", no_argument, NULL, OPT_INTER_RESPONSE},
         {"test-id", required_argument, NULL, OPT_TEST_ID},
         {"reverse", no_argument, NULL, 'R'},
         {"window", required_argument, NULL, 'w'},
@@ -956,6 +957,9 @@ iperf_parse_arguments(struct iperf_test *test, int argc, char **argv)
                 break;
             case OPT_SCHEDULER:
                 test->mptcp_scheduler = strdup(optarg);
+                break;
+            case OPT_INTER_RESPONSE:
+                test->inter_response = 1;
                 break;
             case OPT_TEST_ID:
                 test->test_id = strdup(optarg);
@@ -1594,6 +1598,8 @@ send_parameters(struct iperf_test *test)
         /* this iperf understands mptcp :) */
 	cJSON_AddTrueToObject(j, "mptcp");
         cJSON_AddNumberToObject(j, "num_requested_subflows", test->num_subflows);
+        if (test->inter_response == 1)
+            cJSON_AddTrueToObject(j, "inter_response");
 
 	cJSON_AddNumberToObject(j, "omit", test->omit);
 	if (test->server_affinity != -1)

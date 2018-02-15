@@ -58,6 +58,7 @@ struct sockaddr;
 #define OPT_FORCEFLUSH 7
 #define OPT_NO_FQ_SOCKET_PACING 9
 #define OPT_SCHEDULER 30
+#define OPT_INTER_RESPONSE 35
 #define OPT_TEST_ID 40
 
 /* states */
