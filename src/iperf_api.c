@@ -1896,7 +1896,7 @@ get_results(struct iperf_test *test)
                         r = -1;
                     else {
                         test->json_client_output = j_client_output;
-                        save_test_results_to_file(test);
+                        // save_test_results_to_file(test);
                     }
                 }
             } else {
@@ -3813,8 +3813,8 @@ iperf_json_finish(struct iperf_test *test)
     if (test->json_output_string == NULL)
         return -1;
 
-    if (test->json_output)
-        save_test_results_to_file(test);
+    // if (test->json_output)
+    //     save_test_results_to_file(test);
 
     iflush(test);
     free(test->json_output_string);
