@@ -607,24 +607,6 @@ iperf_on_new_stream(struct iperf_stream *sp)
 }
 
 void
-get_iperf_version(struct iperf_test *test)
-{
-    test->iperf_version = malloc (1024 * sizeof(char));
-    FILE *in = popen("cd ~/iperf  && git describe --long --dirty --always", "r");
-    if(fgets(test->iperf_version, 1023, in) != NULL)
-        strtok(test->iperf_version, "\n");
-}
-
-void
-get_client_script_version(struct iperf_test *test)
-{
-    test->client_script_version = malloc (256 * sizeof(char));
-    FILE *in = popen("cd ~  && git describe --long --dirty --always", "r");
-    if (fgets(test->client_script_version, 255, in) != NULL)
-        strtok(test->client_script_version, "\n");
-}
-
-void
 iperf_on_test_start(struct iperf_test *test)
 {
     if ((test->json_output) || (test->remote_iperf_supports_mptcp)) {
@@ -632,14 +614,6 @@ iperf_on_test_start(struct iperf_test *test)
 	    cJSON_AddStringToObject(test->json_start, "test_id", test->test_id);
 	if (test->title != NULL)
 	    cJSON_AddStringToObject(test->json_start, "title", test->title);
-        if (test->role == 'c') {
-            get_iperf_version(test);
-            get_client_script_version(test);
-        }
-        if (test->iperf_version != NULL)
-            cJSON_AddStringToObject(test->json_start, "iperf_version", test->iperf_version);
-        if (test->client_script_version != NULL)
-            cJSON_AddStringToObject(test->json_start, "client_script_version", test->client_script_version);
 	//if (test->num_subflows != NULL)
             cJSON_AddNumberToObject(test->json_start, "num_requested_subflows", test->num_subflows);
 	if (test->requested_subflows != NULL)
@@ -2364,10 +2338,6 @@ iperf_free_test(struct iperf_test *test)
         iperf_free_subflow(sf);
     }
 
-    if (test->iperf_version)
-	free(test->iperf_version);
-    if (test->client_script_version)
-	free(test->client_script_version);
     if (test->server_hostname)
 	free(test->server_hostname);
     if (test->tmp_template)

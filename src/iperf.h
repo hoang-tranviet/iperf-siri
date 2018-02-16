@@ -305,8 +305,6 @@ struct iperf_test
     int       inter_response;
     char     *mptcp_scheduler;
     char     *test_id;
-    char     *iperf_version;
-    char     *client_script_version;
 
     char     *requested_subflows;
     struct timeval start_time;
